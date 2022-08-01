@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,11 +21,12 @@ import (
 // +kubebuilder:object:generate=true
 
 type Status struct {
-	IsReady       bool                `json:"isReady"`
-	DisplayVars   rawJson.KubeRawJson `json:"displayVars,omitempty"`
-	GeneratedVars rawJson.KubeRawJson `json:"generatedVars,omitempty"`
-	Conditions    []metav1.Condition  `json:"conditions,omitempty"`
-	OpsConditions []metav1.Condition  `json:"opsConditions,omitempty"`
+	IsReady          bool                `json:"isReady"`
+	DisplayVars      rawJson.KubeRawJson `json:"displayVars,omitempty"`
+	GeneratedVars    rawJson.KubeRawJson `json:"generatedVars,omitempty"`
+	Conditions       []metav1.Condition  `json:"conditions,omitempty"`
+	StatusConditions []metav1.Condition  `json:"statusConditions,omitempty"`
+	OpsConditions    []metav1.Condition  `json:"opsConditions,omitempty"`
 }
 
 type Resource interface {
@@ -54,6 +56,12 @@ func GetLocal[T any, V Resource](r *Request[V], key string) (T, bool) {
 		return *new(T), ok
 	}
 	return t, ok
+}
+
+func HasLocal[V Resource](r *Request[V], key string) bool {
+	_, ok := r.locals[key]
+	return ok
+
 }
 
 func SetLocal[T any, V Resource](r *Request[V], key string, value T) {
@@ -99,8 +107,14 @@ func NewRequest[T Resource](ctx context.Context, c client.Client, nn types.Names
 	}
 }
 
+func (r *Request[T]) EnsureFinilizer(finalizerName string) StepResult {
+	controllerutil.AddFinalizer(r.Object, finalizerName)
+	return NewStepResult(nil, r.client.Update(r.ctx, r.Object))
+}
+
 func (r *Request[T]) EnsureLabels() StepResult {
 	el := r.Object.GetEnsuredLabels()
+
 	if !fn.MapContains(r.Object.GetLabels(), el) {
 		x := r.Object.GetLabels()
 		if x == nil {
@@ -110,7 +124,9 @@ func (r *Request[T]) EnsureLabels() StepResult {
 		for k, v := range el {
 			x[k] = v
 		}
+
 		return NewStepResult(&ctrl.Result{}, r.client.Update(r.ctx, r.Object))
+
 	}
 
 	return NewStepResult(nil, nil)
@@ -122,7 +138,7 @@ func (r *Request[T]) FailWithStatusError(err error) StepResult {
 		e = err.Error()
 	}
 	newConditions, _, err2 := conditions.Patch(
-		r.Object.GetStatus().Conditions, []metav1.Condition{
+		r.Object.GetStatus().StatusConditions, []metav1.Condition{
 			{
 				Type:    "FailedWithErr",
 				Status:  metav1.ConditionFalse,
@@ -135,8 +151,13 @@ func (r *Request[T]) FailWithStatusError(err error) StepResult {
 		return NewStepResult(nil, err2)
 	}
 
-	r.Object.GetStatus().Conditions = newConditions
-	return NewStepResult(&ctrl.Result{}, r.client.Status().Update(r.ctx, r.Object))
+	r.Object.GetStatus().StatusConditions = newConditions
+	r.Object.GetStatus().IsReady = false
+	err3 := r.client.Status().Update(r.ctx, r.Object)
+	if err3 != nil {
+		return NewStepResult(&ctrl.Result{}, err3)
+	}
+	return NewStepResult(&ctrl.Result{}, err)
 }
 
 func (r *Request[T]) FailWithOpError(err error) StepResult {
@@ -155,7 +176,14 @@ func (r *Request[T]) FailWithOpError(err error) StepResult {
 	}
 
 	r.Object.GetStatus().OpsConditions = newConditions
-	return NewStepResult(&ctrl.Result{}, r.client.Status().Update(r.ctx, r.Object))
+	r.Object.GetStatus().IsReady = false
+	err2 := r.client.Status().Update(r.ctx, r.Object)
+	if err2 != nil {
+		return NewStepResult(&ctrl.Result{
+			Requeue: true,
+		}, err2)
+	}
+	return NewStepResult(&ctrl.Result{}, err)
 }
 
 func (r *Request[T]) Context() context.Context {
@@ -163,6 +191,14 @@ func (r *Request[T]) Context() context.Context {
 }
 
 func (r *Request[T]) Done(result ...*ctrl.Result) StepResult {
+	r.Object.GetStatus().OpsConditions = []metav1.Condition{}
+	r.Object.GetStatus().StatusConditions = []metav1.Condition{}
+
+	err3 := r.client.Status().Update(r.ctx, r.Object)
+	if err3 != nil {
+		return NewStepResult(&ctrl.Result{}, err3)
+	}
+
 	if len(result) > 0 {
 		return NewStepResult(result[0], nil)
 	}

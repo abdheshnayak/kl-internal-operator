@@ -21,6 +21,13 @@ func (in *Status) DeepCopyInto(out *Status) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.StatusConditions != nil {
+		in, out := &in.StatusConditions, &out.StatusConditions
+		*out = make([]v1.Condition, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.OpsConditions != nil {
 		in, out := &in.OpsConditions, &out.OpsConditions
 		*out = make([]v1.Condition, len(*in))

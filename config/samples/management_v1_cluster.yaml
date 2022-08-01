@@ -1,0 +1,11 @@
+apiVersion: management.kloudlite.io/v1
+kind: Cluster
+metadata:
+  name: vcluster
+spec:
+  # TODO(user): Add fields here
+  account: kl
+  type: kubeconfig
+  clusterId: us-east-1
+  clusterRegion: us-east-1-region
+  clusterProvider: us-east-1-provider

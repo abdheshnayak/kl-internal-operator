@@ -107,22 +107,12 @@ func (tf templateFile) Path() string {
 }
 
 const (
-	MongoDBStandalone                 templateFile = "mongodb-helm-standalone.tmpl.yml"
-	MySqlStandalone                   templateFile = "mysql-helm-standalone.tmpl.yml"
-	MongoDBCluster                    templateFile = "mongodb-helm-cluster.tmpl.yml"
-	MongoDBWatcher                    templateFile = "mongo-msvc-watcher.tmpl.yml"
-	Deployment                        templateFile = "deployment.tmpl.yml"
-	Service                           templateFile = "service.tmpl.yml"
-	Secret                            templateFile = "secret.tmpl.yml"
-	MongoDBClusterResourceDatabase    templateFile = "mongodb-resource-database.tmpl.yml"
-	MongoDBStandaloneResourceDatabase templateFile = "mongodb-resource-database.tmpl.yml"
-	AccountWireguard                  templateFile = "account-deploy.tmpl.yml"
-	CommonMsvc                        templateFile = "msvc-common-service.tmpl.yml"
-	CommonMres                        templateFile = "mres-common.tmpl.yml"
-	RedisStandalone                   templateFile = "redis-helm-standalone.tmpl.yml"
-	ConfigMap                         templateFile = "configmap.tmpl.yml"
-	Ingress                           templateFile = "./ingress.tmpl.yml"
-
-	ServerlessLambda    templateFile = "./serverless/lambda.yml.tpl"
-	ServerlessLambdaSvc templateFile = "./serverless/lambda-svc.yml.tpl"
+	ServerlessLambdaSvc   templateFile = "./serverless/lambda-svc.yml.tpl"
+	ProxyService          templateFile = "./proxy-service.tmpl.yml"
+	ProxyDevice           templateFile = "./proxy-device.tmpl.yml"
+	Account               templateFile = "./account.tmpl.yml"
+	WireGuard             templateFile = "./wireguard.tmpl.yml"
+	WireGuardConfig       templateFile = "./wireguardconf.tmpl.conf"
+	WireGuardDeviceConfig templateFile = "./wireguard-device-conf.tmpl.conf"
+	DNSConfig             templateFile = "./dns-config.tmpl.yml"
 )

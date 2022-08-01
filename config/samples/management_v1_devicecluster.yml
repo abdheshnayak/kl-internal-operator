@@ -1,0 +1,7 @@
+apiVersion: management.kloudlite.io/v1
+kind: DeviceCluster
+metadata:
+  name: blr1-dc
+spec:
+  region: blr1
+  # TODO(user): Add fields here

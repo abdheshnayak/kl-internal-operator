@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	libJson "encoding/json"
-	corev1 "k8s.io/api/core/v1"
+	"reflect"
 	"regexp"
 	"strings"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -220,4 +222,20 @@ func ParseConfigMap(s *corev1.ConfigMap) *corev1.ConfigMap {
 func Md5(b []byte) string {
 	sum := md5.New().Sum(b)
 	return hex.EncodeToString(sum)
+}
+
+// JSONBytesEqual compares the JSON in two byte slices.
+func JSONBytesEqual(a, b []byte) (bool, error) {
+	var j, j2 interface{}
+	if err := json.Unmarshal(a, &j); err != nil {
+		return false, err
+	}
+	if err := json.Unmarshal(b, &j2); err != nil {
+		return false, err
+	}
+	return reflect.DeepEqual(j2, j), nil
+}
+
+func JSONStringsEqual(a, b string) (bool, error) {
+	return JSONBytesEqual([]byte(a), []byte(b))
 }

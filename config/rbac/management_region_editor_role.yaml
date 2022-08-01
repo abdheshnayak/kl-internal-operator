@@ -1,0 +1,24 @@
+# permissions for end users to edit regions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: region-editor-role
+rules:
+- apiGroups:
+  - management.kloudlite.io
+  resources:
+  - regions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - management.kloudlite.io
+  resources:
+  - regions/status
+  verbs:
+  - get

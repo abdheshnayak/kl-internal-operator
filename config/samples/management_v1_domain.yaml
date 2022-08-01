@@ -1,0 +1,12 @@
+apiVersion: management.kloudlite.io/v1
+kind: Domain
+metadata:
+  name: domain-sample
+  labels:
+    kloudlite.io/domain: account-sample.wg.dev.kloudlite.io
+spec:
+  name: blr1.account-sample.wg.dev.kloudlite.io
+  cluster: blr1-dc
+  isDeviceCluster: false
+
+  # TODO(user): Add fields here

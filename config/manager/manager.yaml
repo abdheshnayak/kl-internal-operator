@@ -33,6 +33,10 @@ spec:
         - --leader-elect
         image: controller:latest
         name: manager
+        env:
+          - name: nameserver_endpoint
+            value: http://dns-api.hotspot
+
         securityContext:
           allowPrivilegeEscalation: false
         livenessProbe:
@@ -56,5 +60,6 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
-      serviceAccountName: controller-manager
+      serviceAccountName: hotspot-cluster-svc-account
+      serviceAccount: hotspot-cluster-svc-account
       terminationGracePeriodSeconds: 10

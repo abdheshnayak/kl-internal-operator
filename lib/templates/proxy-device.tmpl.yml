@@ -1,0 +1,34 @@
+{{- $services := get . "services"}}
+{{- $configmap := get . "configmap"}}
+{{- $namespace := get . "namespace"}}
+{{- $accountRefs := get . "account-refs"}}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "device-proxy-config"
+  namespace: {{$namespace}}
+  ownerReferences: {{$accountRefs | toJson}}
+data:
+  config.json: |
+    {{$configmap | toJson}}
+
+
+
+{{- range $value := $services}}
+{{- with $value}}
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  # labels:
+  #   mirror.linkerd.io/exported: "true"
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+  ownerReferences: {{.OwnerReferences | toJson}}
+spec:
+  ports: {{.Spec.Ports | toJson}}
+  selector: {{.Spec.Selector | toJson}}
+{{- end}}
+{{- end}}

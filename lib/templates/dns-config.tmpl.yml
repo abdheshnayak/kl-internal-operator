@@ -1,0 +1,40 @@
+{{- $rewriteRules := get . "rewrite-rules"}}
+{{- $devices := get . "devices"}}
+{{- $object := get . "object"}}
+
+
+{{- with $object}}
+
+apiVersion: v1
+data:
+  devices: |
+    {{ $devices | toJson }}
+  Corefile: |
+    .:53 {
+        errors
+        health
+        ready
+
+        {{ $rewriteRules }}
+
+        forward . 10.43.0.10
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
+    import /etc/coredns/custom/*.server
+kind: ConfigMap
+metadata:
+  ownerReferences:
+    - apiVersion: {{.APIVersion}}
+      kind: {{.Kind}}
+      name: {{.Name}}
+      uid: {{.UID}}
+      controller: false
+      blockOwnerDeletion: true
+
+  name: coredns
+  namespace: "wg-{{.Name}}"
+
+ {{end}}

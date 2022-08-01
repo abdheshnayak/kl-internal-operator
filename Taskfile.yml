@@ -2,31 +2,46 @@ version: '3'
 
 dotenv: [".secrets/env"]
 
-includes:
-  helm:
-    taskfile: ./helm/Taskfile.yml
-    dir: ./helm/
 
 tasks:
   new-kind:
     silent: true
     cmds:
-      - | 
+      - |
         [ -z "{{.Group}}" ] && echo env-var 'Group' not provided && exit 1
         [ -z "{{.Kind}}" ] && echo env-var 'Kind' not provided && exit 1
         exit 0
       - operator-sdk create api --group {{.Group}} --version v1 --resource --controller --kind "{{.Kind}}"
 
+  setup:
+    dir: ./bin
+    cmds:
+      - |
+        curl -L0 https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv4.5.5/kustomize_v4.5.5_linux_amd64.tar.gz > kustomize.tar.gz
+        tar xf kustomize.tar.gz && rm -rf kustomize.tar.gz
+
   run:
+    env:
+      nameserver_endpoint: http://dns-api.hotspot.svc.cluster.local
     run: always
     cmds:
-      - task: kill-port
+      # - task: kill-port
 #      - go run -tags dynamic main.go -dev |& pp -rel-path
-      - go build -i -tags dynamic -o ./bin/operator
-      - ./bin/operator |& pp -rel-path
+      # - go build -i -tags dynamic -o ./bin/operator
+      # - ./bin/operator --dev {{.CLI_ARGS}} |& pp -rel-path
 #      - go run -tags dynamic main.go |& pp -rel-path
 #      - nodemon -w '**/*.go' -q -e go --signal SIGKILL --exec 'go run -tags dynamic main.go'
 #      - nodemon -w '**/*.go' -q -e go --signal SIGKILL --exec 'go run -tags dynamic main.go'
+
+      # - task: kill-port
+#      - go run -tags dynamic main.go -dev |& pp -rel-path
+      - go build -i -tags dynamic -o ./bin/operator
+      # - ./bin/operator |& pp -rel-path
+      - ./bin/operator
+#      - go run -tags dynamic main.go |& pp -rel-path
+#      - nodemon -w '**/*.go' -q -e go --signal SIGKILL --exec 'go run -tags dynamic main.go'
+#      - nodemon -w '**/*.go' -q -e go --signal SIGKILL --exec 'go run -tags dynamic main.go'
+ 
     sources:
       - ./**/*.go
     method: timestamp
@@ -37,22 +52,22 @@ tasks:
 
   deploy:
     env:
-      IMG: harbor.dev.madhouselabs.io/kloudlite/koperator:latest
-      NAMESPACE: koperator
+      nameserver_endpoint: http://dns-api.hotspot.svc.cluster.local
+      IMG: harbor.dev.madhouselabs.io/kloudlite/koperator-internal:latest
+      NAMESPACE: koperator-internal
     cmds:
-      - make docker-build docker-push
+      - make dev-docker-build dev-docker-push
       - cd config/manager && kustomize edit set image controller=${IMG} && kustomize edit set namespace ${NAMESPACE}
       - cd config/default && kustomize edit set namespace ${NAMESPACE}
       - make deploy
 
-  helm-operators:
-    dir: ./helm
+  deploy:build:
+    env:
+      IMG: harbor.dev.madhouselabs.io/kloudlite/koperator-internal:latest
+      NAMESPACE: koperator-internal
     cmds:
-      - echo "this is to create new helm operators/kind"
-#      - operator-sdk create api --plugins=helm --group msvc --version v1 --kind HelmMongoDB --helm-chart mongodb --helm-chart-repo https://charts.bitnami.com/bitnami
-#      - operator-sdk create api --plugins=helm --group msvc --version v1 --kind HelmMySqlDB --helm-chart mysql --helm-chart-repo https://charts.bitnami.com/bitnami
-#      - operator-sdk create api --plugins=helm --group msvc --version v1 --kind HelmElasticSearch --helm-chart elasticsearch --helm-chart-repo https://charts.bitnami.com/bitnami
-      - operator-sdk create api --plugins=helm --group msvc --version v1 --kind HelmRedis --helm-chart redis --helm-chart-repo https://charts.bitnami.com/bitnami
+      - make dev-docker-build dev-docker-push
+
   pre:
     run: once
     cmds:
@@ -72,10 +87,7 @@ tasks:
     cmds:
       - |
         PID=$(lsof -t -i:8089)
-        echo "$PID"
         if [ "$PID" != "" ]; then
           kill -9 $PID
         fi
     silent: true
-
-

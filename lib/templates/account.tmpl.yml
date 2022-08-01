@@ -1,0 +1,6 @@
+apiVersion: management.kloudlite.io/v1
+kind: Account
+metadata:
+  name: {{.Name}}
+spec:
+  accountId: {{.Spec.AccountId}}

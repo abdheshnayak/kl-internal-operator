@@ -28,6 +28,18 @@ func KubectlApplyExec(stdin ...[]byte) (stdout *bytes.Buffer, err error) {
 	return outStream, nil
 }
 
+func Kubectl(args ...string) (stdout *bytes.Buffer, err error) {
+	c := exec.Command("kubectl", args...)
+	outStream, errStream := bytes.NewBuffer([]byte{}), bytes.NewBuffer([]byte{})
+	c.Stdout = outStream
+	c.Stderr = errStream
+	if err := c.Run(); err != nil {
+		return outStream, errors.NewEf(err, errStream.String())
+	}
+	fmt.Printf("stdout: %s\n", outStream.Bytes())
+	return outStream, nil
+}
+
 func toUnstructured(obj client.Object) (*unstructured.Unstructured, error) {
 	b, err := json.Marshal(obj)
 	if err != nil {

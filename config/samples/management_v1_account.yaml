@@ -1,0 +1,7 @@
+apiVersion: management.kloudlite.io/v1
+kind: Account
+metadata:
+  name: acc-i-zcfuqpgwkekvjd2y5n2imaiz4v
+spec:
+  accountId: acc-i-zcfuqpgwkekvjd2y5n2imaiz4v
+  # TODO(user): Add fields here

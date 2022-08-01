@@ -2,6 +2,7 @@ package raw_json
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // +kubebuilder:pruning:PreserveUnknownFields
@@ -14,6 +15,18 @@ type KubeRawJson struct {
 
 func (k *KubeRawJson) DeepCopyInto(out *KubeRawJson) {
 	*out = *k
+}
+
+func (k *KubeRawJson) IsEqual(key string, newValue any) bool {
+	op, ok := k.Get(key)
+	if !ok {
+		return false
+	}
+	return fmt.Sprintf("%v", newValue) == fmt.Sprintf("%v", op)
+}
+
+func (k *KubeRawJson) IsNotEqual(key string, newValue any) bool {
+	return !k.IsEqual(key, newValue)
 }
 
 func (k *KubeRawJson) DeepCopy() *KubeRawJson {
@@ -50,6 +63,10 @@ func (s RawJson[K, V]) ToMap() (map[K]V, error) {
 
 func (s *RawJson[K, V]) Set(key K, value V) error {
 	return s.Merge(map[K]V{key: value})
+}
+
+func (s *RawJson[K, V]) Reset() {
+	s.RawMessage = nil
 }
 
 func (s *RawJson[K, V]) Merge(val map[K]V) error {

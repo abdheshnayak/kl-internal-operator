@@ -31,4 +31,10 @@ resources:
 - redis-cluster.msvc_v1_keyprefix.yaml
 - redis-standalone.msvc_v1_aclaccount.yaml
 - serverless_v1_lambda.yaml
+- internal_v1_account.yaml
+- management_v1_account.yaml
+- management_v1_cluster.yaml
+- management_v1_device.yaml
+- management_v1_domain.yaml
+- management_v1_region.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

@@ -1,0 +1,40 @@
+
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: {{$svcName}}
+#   namespace: {{.Namespace}}
+#   labels: &labelRef
+#     kloudlite.io/proxyto: {{.Name}}
+#     devices.kloudlite.io/ref: {{.Name}}
+#   ownerReferences:
+#     - apiVersion: {{.APIVersion}}
+#       kind: {{.Kind}}
+#       name: {{.Name}}
+#       uid: {{.UID}}
+#       controller: false
+#       blockOwnerDeletion: true
+# spec:
+#   selector:
+#     matchLabels: *labelRef
+#   template:
+#     metadata:
+#       labels: *labelRef
+#     spec:
+#       containers:
+#       - name: main
+#         image: alpine/socat:latest
+#         command: 
+#           - /bin/sh
+#           - -c
+#           - |
+#             {{- $orgSvcName := .Name }}
+#             {{- range $port := .Spec.Ports }}
+#             # socat -d TCP-LISTEN:80,fork,reuseaddr TCP-CONNECT:{{.Name}}:80 &
+#             echo '$(socat -d -d TCP-LISTEN:{{$port.Port}},fork,reuseaddr TCP-CONNECT:{{$orgSvcName}}:{{$port.Port}} || exit 1) &'
+#             eval $(socat -d -d TCP-LISTEN:{{$port.Port}},fork,reuseaddr TCP-CONNECT:{{$orgSvcName}}:{{$port.Port}} || exit 1) &
+#             {{- end }}
+#             tail -f /dev/null
+# {{- end}}
+
+
