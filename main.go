@@ -23,10 +23,13 @@ import (
 	// deviceclusterv1 "operators.kloudlite.io/apis/device-cluster/v1"
 	managementv1 "operators.kloudlite.io/apis/management/v1"
 	commoncontroller "operators.kloudlite.io/controllers/common"
+
 	// deviceclustercontrollers "operators.kloudlite.io/controllers/device-cluster"
 	// management "operators.kloudlite.io/controllers/management"
 	// managementcontrollers "operators.kloudlite.io/controllers/management"
 	// managementcontrollers "operators.kloudlite.io/controllers/management"
+	infrav1 "operators.kloudlite.io/apis/infra/v1"
+	infracontrollers "operators.kloudlite.io/controllers/infra"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -40,6 +43,7 @@ func init() {
 
 	utilruntime.Must(managementv1.AddToScheme(scheme))
 	// utilruntime.Must(deviceclusterv1.AddToScheme(scheme))
+	utilruntime.Must(infrav1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -129,37 +133,64 @@ func main() {
 		mgr = mr
 	}
 
-	if err := (&commoncontroller.AccountReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
-		os.Exit(1)
-	}
+	func() {
+		if os.Getenv("COMM") != "true" {
+			return
+		}
 
-	if err := (&commoncontroller.DomainReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
-		os.Exit(1)
-	}
+		if err := (&commoncontroller.AccountReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
+			os.Exit(1)
+		}
 
-	if err := (&commoncontroller.RegionReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Region")
-		os.Exit(1)
-	}
+		if err := (&commoncontroller.DomainReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
+			os.Exit(1)
+		}
 
-	if err := (&commoncontroller.DeviceReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
-		os.Exit(1)
-	}
+		if err := (&commoncontroller.RegionReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Region")
+			os.Exit(1)
+		}
+
+		if err := (&commoncontroller.DeviceReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
+			os.Exit(1)
+		}
+	}()
+
+	func() {
+		if os.Getenv("INFRA") != "true" {
+			return
+		}
+
+		if err := (&infracontrollers.AccountNodeReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "AccountNode")
+			os.Exit(1)
+		}
+		if err := (&infracontrollers.AccountProviderReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "AccountProvider")
+			os.Exit(1)
+		}
+	}()
 
 	// +kubebuilder:scaffold:builder
 

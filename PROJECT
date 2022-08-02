@@ -53,4 +53,22 @@ resources:
   kind: Region
   path: operators.kloudlite.io/apis/management/v1
   version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: kloudlite.io
+  group: infra
+  kind: AccountNode
+  path: operators.kloudlite.io/apis/infra/v1
+  version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: kloudlite.io
+  group: infra
+  kind: AccountProvider
+  path: operators.kloudlite.io/apis/infra/v1
+  version: v1
 version: "3"

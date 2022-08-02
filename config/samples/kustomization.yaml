@@ -37,4 +37,6 @@ resources:
 - management_v1_device.yaml
 - management_v1_domain.yaml
 - management_v1_region.yaml
+- infra_v1_accountnode.yaml
+- infra_v1_accountprovider.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

@@ -32,6 +32,58 @@ rules:
   - patch
   - update
 - apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - accountnodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - accountnodes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - accountnodes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - accountproviders
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - accountproviders/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - accountproviders/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - management.kloudlite.io
   resources:
   - accounts

@@ -22,6 +22,8 @@ tasks:
 
   run:
     env:
+      COMM: false
+      INFRA: true
       nameserver_endpoint: http://dns-api.hotspot.svc.cluster.local
     run: always
     cmds:

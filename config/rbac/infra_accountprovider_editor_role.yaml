@@ -1,0 +1,24 @@
+# permissions for end users to edit accountproviders.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: accountprovider-editor-role
+rules:
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - accountproviders
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - accountproviders/status
+  verbs:
+  - get

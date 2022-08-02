@@ -1,0 +1,6 @@
+apiVersion: infra.kloudlite.io/v1
+kind: AccountProvider
+metadata:
+  name: accountprovider-sample
+spec:
+  # TODO(user): Add fields here
