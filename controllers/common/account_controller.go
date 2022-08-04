@@ -475,7 +475,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			}
 			if string(existingConfig.Data["data"]) != string(parse) {
 
-				fmt.Println("\nChanged\nOLD----------------------------------------------------\n", string(existingConfig.Data["data"]), "\nNew\n-----------------------------------------\n", string(parse))
+				// fmt.Println("\nChanged\nOLD----------------------------------------------------\n", string(existingConfig.Data["data"]), "\nNew\n-----------------------------------------\n", string(parse))
 
 				isReady = false
 				cs = append(cs,
@@ -784,7 +784,7 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 				return req.FailWithOpError(err)
 			}
 
-			fmt.Println(string(b))
+			// fmt.Println(string(b))
 
 			_, err = functions.KubectlApplyExec(b)
 
@@ -905,9 +905,9 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 			return fmt.Errorf("failed to fetch device-proxy-services")
 		}
 
-		for _, c := range configs {
-			fmt.Println(c.Id)
-		}
+		// for _, c := range configs {
+		// 	fmt.Println(c.Id)
+		// }
 
 		// fmt.Printf("config,services: %+v\n%+v\n", configs, services)
 		b, err := templates.Parse(templates.ProxyDevice, map[string]any{
@@ -950,8 +950,8 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 
 		var updateError error
 		for _, region := range regions.Items {
-			resp, err := http.Post(fmt.Sprintf("http://proxy-service-%s.wg-%s.svc.cluster.local/post", region.Name, req.Object.Name), "application/json", bytes.NewBuffer(configJson))
-			fmt.Println(resp)
+			_, err = http.Post(fmt.Sprintf("http://proxy-service-%s.wg-%s.svc.cluster.local/post", region.Name, req.Object.Name), "application/json", bytes.NewBuffer(configJson))
+			// fmt.Println(resp)
 			if err != nil {
 				fmt.Println(region.Name, ":", err)
 				updateError = err

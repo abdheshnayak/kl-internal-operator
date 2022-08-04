@@ -34,8 +34,9 @@ func (n *NameServer) UpsertDomain(domainName string, aRecords []string) error {
 }
 
 func (n *NameServer) UpsertNodeIps(region string, ips []string) error {
-	data, err := json.Marshal(map[string][]string{
-		region: ips,
+	data, err := json.Marshal(map[string]any{
+		"region": region,
+		"ips":    ips,
 	})
 
 	if err != nil {

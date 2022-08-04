@@ -24,7 +24,8 @@ tasks:
     env:
       COMM: false
       INFRA: true
-      nameserver_endpoint: http://dns-api.hotspot.svc.cluster.local
+      # nameserver_endpoint: http://dns-api.hotspot.svc.cluster.local
+      nameserver_endpoint: http://10.13.13.4:3000
     run: always
     cmds:
       # - task: kill-port

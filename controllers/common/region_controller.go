@@ -67,7 +67,6 @@ func (r *RegionReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ct
 	endpoint := os.Getenv("nameserver_endpoint")
 
 	dns := nameserver.NewClient(endpoint)
-
 	err = dns.UpsertNodeIps(req.Object.Name, ips)
 
 	if err != nil {
