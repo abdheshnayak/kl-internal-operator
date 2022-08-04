@@ -133,6 +133,10 @@ func (r *DomainReconciler) reconcileStatus(req *rApi.Request[*managementv1.Domai
 
 		c_ips := []string{}
 
+		// sort.Slice(req.Object.Spec.Ips, func(i, j int) bool {
+		// 	return req.Object.Spec.Ips[i] > req.Object.Spec.Ips[j]
+		// })
+
 		for _, ci := range req.Object.Spec.Ips {
 			c_ips = append(c_ips, ci)
 
@@ -157,7 +161,7 @@ func (r *DomainReconciler) reconcileStatus(req *rApi.Request[*managementv1.Domai
 	}(); err != nil {
 		req.FailWithStatusError(err)
 	} else if notFound {
-		fmt.Println("wrong")
+		fmt.Println("domain not found")
 		return req.Done(&ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5})
 	}
 

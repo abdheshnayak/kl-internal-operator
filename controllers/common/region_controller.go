@@ -2,7 +2,9 @@ package commoncontroller
 
 import (
 	"context"
+	"os"
 
+	"operators.kloudlite.io/lib/nameserver"
 	rApi "operators.kloudlite.io/lib/operator"
 
 	corev1 "k8s.io/api/core/v1"
@@ -61,6 +63,17 @@ func (r *RegionReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ct
 	}
 
 	req.Object.Status.DisplayVars.Set("kloudlite.io/node-ips", ips)
+
+	endpoint := os.Getenv("nameserver_endpoint")
+
+	dns := nameserver.NewClient(endpoint)
+
+	err = dns.UpsertNodeIps(req.Object.Name, ips)
+
+	if err != nil {
+		x := rApi.NewStepResult(nil, err)
+		return x.Result(), x.Err()
+	}
 
 	if err := r.Status().Update(req.Context(), req.Object); err != nil {
 		x := rApi.NewStepResult(nil, err)

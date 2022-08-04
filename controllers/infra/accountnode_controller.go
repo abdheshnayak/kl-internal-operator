@@ -84,6 +84,16 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 }
 
 func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.AccountNode]) rApi.StepResult {
+
+	// actions (action depends on provider) (best if create seperate crdfor diffrent providers)
+	// check if provider present and ready
+	// check if node present
+	// check status of node
+	// create if node not present
+	// update node if values changed
+	// update node if provider values changed
+	// drain and delete node if crd deleted
+
 	req.Object.Status.DisplayVars.Reset()
 	var cs []metav1.Condition
 	isReady := true

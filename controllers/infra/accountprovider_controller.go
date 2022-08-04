@@ -85,6 +85,12 @@ func (r *AccountProviderReconciler) finalize(req *rApi.Request[*infrav1.AccountP
 }
 
 func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.AccountProvider]) rApi.StepResult {
+
+	// actions
+	// if possible check if credentials valid
+	// delete all the nodes under this provider if deleted
+	// if credentials updated update the version of config and trigger all the nodes to be updated
+
 	req.Object.Status.DisplayVars.Reset()
 	var cs []metav1.Condition
 	isReady := true
