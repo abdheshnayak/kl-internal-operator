@@ -1,5 +1,5 @@
 # Adds namespace to all resources.
-namespace: koperator-internal
+namespace: kl-core
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
@@ -46,3 +46,7 @@ resources:
 - ../crd
 - ../rbac
 - ../manager
+images:
+- name: controller
+  newName: harbor.dev.madhouselabs.io/dev-kloudlite/koperator-internal-operator
+  newTag: latest
