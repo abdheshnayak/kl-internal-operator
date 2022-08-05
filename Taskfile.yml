@@ -71,7 +71,7 @@ tasks:
     cmds:
       - make dev-docker-build dev-docker-push
 
-   deploy:staging:
+  deploy:staging:
     env:
       IMG: harbor.dev.madhouselabs.io/dev-kloudlite/koperator-internal-operator:latest
       NAMESPACE: kl-core
