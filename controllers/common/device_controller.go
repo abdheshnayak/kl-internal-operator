@@ -201,6 +201,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 
 		if err == nil {
 			rApi.SetLocal(req, "dns-devices", string(dnsConf.Data["devices"]))
+			fmt.Println(string(dnsConf.Data["devices"]), "...........................................here", req.Object.Spec.Account)
 		}
 
 		dnsSvc, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
@@ -277,6 +278,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 		for _, device := range devices.Items {
 			d = append(d, device.Spec.DeviceName)
 		}
+
 		sort.Strings(d)
 		var oldDevices []string
 		json.Unmarshal([]byte(dnsDevices), &oldDevices)
@@ -539,13 +541,15 @@ func (r *DeviceReconciler) reconcileOperations(req *rApi.Request[*managementv1.D
 			if err != nil {
 				return err
 			}
-			// fmt.Println(string(parse))
+			fmt.Println(string(parse))
 
-			_, err = functions.KubectlApplyExec(parse)
+			op, err := functions.KubectlApplyExec(parse)
+
 			if err != nil {
 				return err
 			}
 
+			fmt.Println(op)
 			_, err = functions.Kubectl("-n", fmt.Sprintf("wg-%s", req.Object.Spec.Account), "rollout", "restart", "deployment/coredns")
 
 			if err != nil {

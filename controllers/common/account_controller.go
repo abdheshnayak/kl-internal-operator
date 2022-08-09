@@ -770,12 +770,23 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 		for _, region := range regions.Items {
 
 			// fmt.Println(".................................")
+			corednsConfigExists := true
+			deviceProxyConfigExists := true
+			if _, err := rApi.Get(req.Context(), r.Client, functions.NN("wg-"+req.Object.Name, "coredns"), &corev1.ConfigMap{}); err != nil {
+				corednsConfigExists = false
+			}
+
+			if _, err := rApi.Get(req.Context(), r.Client, functions.NN("wg-"+req.Object.Name, "device-proxy-config"), &corev1.ConfigMap{}); err != nil {
+				corednsConfigExists = false
+			}
 
 			b, err := templates.Parse(templates.WireGuard, map[string]any{
-				"obj":               req.Object,
-				"owner-refs":        functions.AsOwner(req.Object, true),
-				"region-owner-refs": functions.AsOwner(&region),
-				"region":            region.Name,
+				"obj":                        req.Object,
+				"owner-refs":                 functions.AsOwner(req.Object, true),
+				"region-owner-refs":          functions.AsOwner(&region),
+				"region":                     region.Name,
+				"coredns-config-exists":      corednsConfigExists,
+				"device-proxy-config-exists": deviceProxyConfigExists,
 			})
 
 			// fmt.Printf("template: %s\n", string(b))
