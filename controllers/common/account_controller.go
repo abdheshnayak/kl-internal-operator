@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"sort"
 	"time"
 
@@ -268,7 +269,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		err := r.List(req.Context(), &devices,
 			&client.ListOptions{
 				LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-					"kloudlite.io/account-id": req.Object.Spec.AccountId,
+					"kloudlite.io/account-ref": req.Object.Spec.AccountId,
 				}),
 			},
 		)
@@ -708,6 +709,12 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 				continue
 			}
 
+			wgBaseDomain := os.Getenv("WG_DOMAIN")
+
+			if wgDomain == "" {
+				return fmt.Errorf(("CAN'T find WG_DOMAIN in environment"))
+			}
+
 			err = functions.KubectlApply(req.Context(), r.Client, &managementv1.Domain{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "management.kloudlite.io/v1",
@@ -725,7 +732,7 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 					},
 				},
 				Spec: managementv1.DomainSpec{
-					Name: fmt.Sprintf("%s.%s.wg.dev.kloudlite.io", region.Name, wgDomain),
+					Name: fmt.Sprintf("%s.%s.wg.%s", region.Name, wgDomain, wgBaseDomain),
 					Ips: func() []string {
 
 						// fmt.Println(ipsAny)
@@ -1018,7 +1025,7 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if object.GetLabels() == nil {
 				return nil
 			}
-			account, ok := object.GetLabels()["kloudlite.io/account-id"]
+			account, ok := object.GetLabels()["kloudlite.io/account-ref"]
 			if !ok {
 				return nil
 			}

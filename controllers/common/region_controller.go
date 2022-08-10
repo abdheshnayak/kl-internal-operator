@@ -2,6 +2,7 @@ package commoncontroller
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"operators.kloudlite.io/lib/nameserver"
@@ -64,7 +65,12 @@ func (r *RegionReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ct
 
 	req.Object.Status.DisplayVars.Set("kloudlite.io/node-ips", ips)
 
-	endpoint := os.Getenv("nameserver_endpoint")
+	endpoint := os.Getenv("NAMESERVER_ENDPOINT")
+
+	if endpoint == "" {
+		x := rApi.NewStepResult(nil, fmt.Errorf("NAMESERVER_ENDPOINT not found in environment"))
+		return x.Result(), x.Err()
+	}
 
 	dns := nameserver.NewClient(endpoint)
 	err = dns.UpsertNodeIps(req.Object.Name, ips)

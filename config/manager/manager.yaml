@@ -34,8 +34,14 @@ spec:
         image: controller:latest
         name: manager
         env:
-          - name: nameserver_endpoint
+          - name: NAMESERVER_ENDPOINT
             value: http://dns-api.hotspot
+
+          - name: COMM
+            value: false
+
+          - name: INFRA
+            value: true
 
         securityContext:
           allowPrivilegeEscalation: false

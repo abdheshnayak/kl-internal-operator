@@ -37,7 +37,7 @@ type Device struct {
 func (d *Device) GetEnsuredLabels() map[string]string {
 	return map[string]string{
 		"kloudlite.io/device-id":  d.Spec.DeviceId,
-		"kloudlite.io/account-id": d.Spec.Account,
+		"kloudlite.io/account-ref": d.Spec.Account,
 	}
 }
 

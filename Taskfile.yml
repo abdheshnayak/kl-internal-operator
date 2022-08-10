@@ -24,8 +24,8 @@ tasks:
     env:
       COMM: false
       INFRA: true
-      nameserver_endpoint: http://dns-api.hotspot.svc.cluster.local
-      # nameserver_endpoint: http://10.13.13.4:3000
+      NAMESERVER_ENDPOINT: http://dns-api.hotspot.svc.cluster.local
+      # NAMESERVER_ENDPOINT: http://10.13.13.4:3000
     run: always
     cmds:
       # - task: kill-port
@@ -55,7 +55,7 @@ tasks:
 
   deploy:
     env:
-      nameserver_endpoint: http://dns-api.hotspot.svc.cluster.local
+      NAMESERVER_ENDPOINT: http://dns-api.hotspot.svc.cluster.local
       IMG: harbor.dev.madhouselabs.io/kloudlite/koperator-internal:latest
       NAMESPACE: koperator-internal
     cmds:

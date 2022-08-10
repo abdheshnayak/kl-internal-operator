@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"time"
 
@@ -252,7 +253,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 		err := r.List(req.Context(), &devices,
 			&client.ListOptions{
 				LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-					"kloudlite.io/account-id": req.Object.Spec.Account,
+					"kloudlite.io/account-ref": req.Object.Spec.Account,
 				}),
 			},
 		)
@@ -391,6 +392,12 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 			PublicKey string
 		}
 
+		wgBaseDomain := os.Getenv("WG_DOMAIN")
+
+		if wgDomain == "" {
+			return fmt.Errorf(("CAN'T find WG_DOMAIN in environment"))
+		}
+
 		for _, region := range regions.Items {
 
 			wgNodePort, ok := account.Status.DisplayVars.Get("WGNodePort-" + region.Name)
@@ -406,7 +413,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 				PublicKey string
 			}{
 				Region:    region.Name,
-				Endpoint:  fmt.Sprintf("%s.%s.wg.dev.kloudlite.io:%s", region.Name, wgDomain, wgNodePort),
+				Endpoint:  fmt.Sprintf("%s.%s.wg.%s:%s", region.Name, wgDomain, wgBaseDomain, wgNodePort),
 				PublicKey: wgPublicKey.(string),
 			})
 
@@ -446,7 +453,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 				Namespace: "wg-" + req.Object.Spec.Account,
 				Labels: map[string]string{
 					"kloudlite.io/wg-device-config": "true",
-					"kloudlite.io/account-id":       req.Object.Spec.Account,
+					"kloudlite.io/account-ref":       req.Object.Spec.Account,
 				},
 				OwnerReferences: []metav1.OwnerReference{
 					functions.AsOwner(req.Object),

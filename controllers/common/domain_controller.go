@@ -73,7 +73,11 @@ func (r *DomainReconciler) finalize(req *rApi.Request[*managementv1.Domain]) rAp
 
 	// deleting domain record
 	if err := func() error {
-		endpoint := os.Getenv("nameserver_endpoint")
+		endpoint := os.Getenv("NAMESERVER_ENDPOINT")
+
+		if endpoint == "" {
+			return fmt.Errorf("NAMESERVER_ENDPOINT not found in environment")
+		}
 
 		dns := nameserver.NewClient(endpoint)
 
@@ -97,7 +101,11 @@ func (r *DomainReconciler) reconcileStatus(req *rApi.Request[*managementv1.Domai
 	// check if record present
 	if err, notFound := func() (error, bool) {
 
-		endpoint := os.Getenv("nameserver_endpoint")
+		endpoint := os.Getenv("NAMESERVER_ENDPOINT")
+
+		if endpoint == "" {
+			return fmt.Errorf("NAMESERVER_ENDPOINT not found in environment"), true
+		}
 
 		labels := req.Object.GetLabels()
 
