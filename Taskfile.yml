@@ -59,10 +59,13 @@ tasks:
       IMG: harbor.dev.madhouselabs.io/kloudlite/koperator-internal:latest
       NAMESPACE: koperator-internal
     cmds:
-      - make dev-docker-build dev-docker-push
+      # - make dev-docker-build dev-docker-push
       - cd config/manager && kustomize edit set image controller=${IMG} && kustomize edit set namespace ${NAMESPACE}
       - cd config/default && kustomize edit set namespace ${NAMESPACE}
-      - make deploy
+      # - kustomize build config/default | yq '.spec.template.spec | .serviceAccount = "hotspot-cluster-svc-account" | .serviceAccountName="hotspot-cluster-svc-account"'
+      - kustomize build config/default | yq 'select(.kind == "Deployment") | .spec.template.spec.serviceAccount = "hotspot-cluster-svc-account" | .spec.template.spec.serviceAccountName = "hotspot-cluster-svc-account"' -y | kubectl apply -f -
+      # - kustomize build config/default | yq '.spec.template.spec | .serviceAccount = "hotspot-cluster-svc-account" | .serviceAccountName="hotspot-cluster-svc-account"' | kubectl apply -f -
+      # - make deploy
 
   deploy:build:
     env:

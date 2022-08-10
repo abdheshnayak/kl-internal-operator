@@ -13,11 +13,11 @@ type DeviceSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Account      string  `json:"account,omitempty"`
+	Account      string  `json:"account"`
 	ActiveRegion string  `json:"activeRegion,omitempty"`
 	Offset       int     `json:"offset"`
-	DeviceId     string  `json:"deviceId,omitempty"`
-	DeviceName   string  `json:"deviceName,omitempty"`
+	DeviceId     string  `json:"deviceId"`
+	DeviceName   string  `json:"deviceName"`
 	Ports        []int32 `json:"ports,omitempty"`
 }
 
