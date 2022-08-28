@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sort"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -99,19 +100,18 @@ func (r *DomainReconciler) reconcileStatus(req *rApi.Request[*managementv1.Domai
 	isReady := true
 
 	// check if record present
-	if err, notFound := func() (error, bool) {
+	if err, notMatched := func() (error, bool) {
 
 		endpoint := os.Getenv("NAMESERVER_ENDPOINT")
 
 		if endpoint == "" {
-			return fmt.Errorf("NAMESERVER_ENDPOINT not found in environment"), true
+			return fmt.Errorf("NAMESERVER_ENDPOINT not found in environment"), false
 		}
 
 		labels := req.Object.GetLabels()
 
 		if labels == nil || labels["kloudlite.io/wg-domain"] == "" {
-			fmt.Println("here1")
-			return nil, true
+			return nil, false
 		}
 
 		res, err := http.Get(fmt.Sprintf("%s/get-records/%s", endpoint, req.Object.Spec.Name))
@@ -121,55 +121,57 @@ func (r *DomainReconciler) reconcileStatus(req *rApi.Request[*managementv1.Domai
 		}
 
 		body, err := ioutil.ReadAll(res.Body)
+
 		if err != nil {
 			return err, false
 		}
 
-		var ips []struct {
-			Answer string `json:"answer"`
+		var ips struct {
+			Answers []string `json:"answers"`
 		}
 
-		notFound := false
 		if err = json.Unmarshal(body, &ips); err != nil {
-			fmt.Println("here2")
-			notFound = true
+			fmt.Println("cant find parse the ips from the response of nameserver")
 		}
 
-		if len(ips) == 0 {
-			notFound = true
-		}
+		// if len(ips.Answers) == 0 {
+		// 	return err
+		// }
 
-		c_ips := []string{}
+		c_ips := ips.Answers
 
-		// sort.Slice(req.Object.Spec.Ips, func(i, j int) bool {
-		// 	return req.Object.Spec.Ips[i] > req.Object.Spec.Ips[j]
-		// })
+		sort.Slice(c_ips, func(i, j int) bool {
+			return c_ips[i] > c_ips[j]
+		})
 
-		for _, ci := range req.Object.Spec.Ips {
-			c_ips = append(c_ips, ci)
+		sort.Slice(req.Object.Spec.Ips, func(i, j int) bool {
+			return req.Object.Spec.Ips[i] > req.Object.Spec.Ips[j]
+		})
 
-			for _, a := range ips {
-				if ci == a.Answer {
-					return nil, notFound
-				}
+		notMatched := false
+
+		for i, v := range req.Object.Spec.Ips {
+			if len(c_ips) <= i {
+				notMatched = true
+				break
+			}
+			if v != c_ips[i] {
+				notMatched = true
+				break
 			}
 		}
 
 		dns := nameserver.NewClient(endpoint)
 
-		// fmt.Printf("+%v\n,", c_ips)
-
-		if err = dns.UpsertDomain(req.Object.Spec.Name, c_ips); err != nil {
-			return err, notFound
+		if err = dns.UpsertDomain(req.Object.Spec.Name, req.Object.Spec.Ips); err != nil {
+			return err, notMatched
 		}
 
-		// fmt.Println("Address", ips, req.Object.Spec.Ips, req.Object.Spec.Name)
-
-		return nil, notFound
+		return nil, notMatched
 	}(); err != nil {
 		req.FailWithStatusError(err)
-	} else if notFound {
-		fmt.Println("domain not found")
+	} else if notMatched {
+		fmt.Println("Domain IPS not updated on server")
 		return req.Done(&ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5})
 	}
 

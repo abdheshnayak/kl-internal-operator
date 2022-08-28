@@ -5,7 +5,7 @@ import (
 	rApi "operators.kloudlite.io/lib/operator"
 )
 
-/// AccountSpec defines the desired state of Account
+// / AccountSpec defines the desired state of Account
 type AccountSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file

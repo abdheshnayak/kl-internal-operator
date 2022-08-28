@@ -24,146 +24,78 @@ tasks:
     env:
       COMM: false
       INFRA: true
-      NAMESERVER_ENDPOINT: http://dns-api.hotspot.svc.cluster.local
+      NAMESERVER_ENDPOINT: http://dns-api.kl-core.svc.cluster.local
+      WG_DOMAIN: dev.kloudlite.io
       # NAMESERVER_ENDPOINT: http://10.13.13.4:3000
     run: always
     cmds:
-      # - task: kill-port
-#      - go run -tags dynamic main.go -dev |& pp -rel-path
-      # - go build -i -tags dynamic -o ./bin/operator
-      # - ./bin/operator --dev {{.CLI_ARGS}} |& pp -rel-path
-#      - go run -tags dynamic main.go |& pp -rel-path
-#      - nodemon -w '**/*.go' -q -e go --signal SIGKILL --exec 'go run -tags dynamic main.go'
-#      - nodemon -w '**/*.go' -q -e go --signal SIGKILL --exec 'go run -tags dynamic main.go'
-
-      # - task: kill-port
-#      - go run -tags dynamic main.go -dev |& pp -rel-path
       - go build -i -tags dynamic -o ./bin/operator
-      # - ./bin/operator |& pp -rel-path
       - ./bin/operator
-#      - go run -tags dynamic main.go |& pp -rel-path
-#      - nodemon -w '**/*.go' -q -e go --signal SIGKILL --exec 'go run -tags dynamic main.go'
-#      - nodemon -w '**/*.go' -q -e go --signal SIGKILL --exec 'go run -tags dynamic main.go'
- 
+
     sources:
       - ./**/*.go
     method: timestamp
 
   build:
-    cmds:
-      - operator-sdk build harbor.dev.madhouselabs.io/kloudlite/operator:latest
-
-  deploy:
+    vars:
+      Name: kloudlite-internal-operator
     env:
-      NAMESERVER_ENDPOINT: http://dns-api.hotspot.svc.cluster.local
-      IMG: harbor.dev.madhouselabs.io/kloudlite/koperator-internal:latest
-      NAMESPACE: koperator-internal
-    cmds:
-      # - make dev-docker-build dev-docker-push
-      - cd config/manager && kustomize edit set image controller=${IMG} && kustomize edit set namespace ${NAMESPACE}
-      - cd config/default && kustomize edit set namespace ${NAMESPACE}
-      # - kustomize build config/default | yq '.spec.template.spec | .serviceAccount = "hotspot-cluster-svc-account" | .serviceAccountName="hotspot-cluster-svc-account"'
-      - kustomize build config/default | yq 'select(.kind == "Deployment") | .spec.template.spec.serviceAccount = "hotspot-cluster-svc-account" | .spec.template.spec.serviceAccountName = "hotspot-cluster-svc-account"' -y | kubectl apply -f -
-      # - kustomize build config/default | yq '.spec.template.spec | .serviceAccount = "hotspot-cluster-svc-account" | .serviceAccountName="hotspot-cluster-svc-account"' | kubectl apply -f -
-      # - make deploy
-
-  deploy:build:
-    env:
-      IMG: harbor.dev.madhouselabs.io/dev-kloudlite/koperator-internal-operator:latest
-      NAMESPACE: kl-core
+      IMG: harbor.dev.madhouselabs.io/kloudlite/{{.EnvName}}/{{.Name}}:{{.Tag}}
+      # NAMESPACE: kl-core
+    preconditions:
+      - sh: test -n '{{.Tag}}'
+        msg: "var Tag must have a value"
+      - sh: test -n '{{.EnvName}}'
+        msg: "var EnvName must have a value"
     cmds:
       - make dev-docker-build dev-docker-push
 
-  deploy:staging:
-    env:
-      IMG: harbor.dev.madhouselabs.io/dev-kloudlite/koperator-internal-operator:latest
-      NAMESPACE: kl-core
+  gen-yamls:
     vars:
       Name: kloudlite-internal-operator
+      Image: harbor.dev.madhouselabs.io/kloudlite/{{.EnvName}}/{{.Name}}:{{.Tag}}
+      Namespace: kl-core
+    preconditions:
+      - sh: test -n '{{.Tag}}'
+        msg: "var Tag must have a value"
+      - sh: test -n '{{.EnvName}}'
+        msg: "var EnvName must have a value"
     cmds:
-      - make dev-docker-build dev-docker-push
-      - |
-        cd config/manager
-        kustomize edit set image controller=${IMG}
-        kustomize edit set namespace ${NAMESPACE}
-      - |
-        cd config/default
-        kustomize edit set image controller=${IMG}
-        kustomize edit set namespace ${NAMESPACE}
-      # - |+
-      #   filename=/tmp/kl-operator-$RANDOM.yml
-      #   kustomize build config/default > $filename
-      #   cat $filename | yq 'select((.kind != "Deployment") and (.kind != "Namespace") and (.kind != "Service") )' -y
-      #   cat $filename | yq 'select(.kind == "Deployment") | .metadata.name="{{.Name}}"' -y | kubectl apply -f -
-      #   cat $filename | yq 'select(.kind == "Service")| .metadata.labels.control-plane = "{{.ControlPlaneLabel}}"' -y
-
+      - make manifests
       - |+
-        yamls=$(kustomize build config/default | yq 'select(.kind | [.] - ["Deployment", "Service", "ConfigMap", "CustomResourceDefinition"] | length > 0 | not)' -y)
+        cat config/crd/bases/*.yaml | yq -y
 
-        echo "$yamls" | yq 'select(.kind == "CustomResourceDefinition")' -y | kubectl apply -f -
-
-        echo "$yamls" | yq '
-          select((.kind == "ConfigMap") and (.metadata.name == "manager-config")) |
-          .metadata.name = "{{.Name}}-manager-config"
-        ' -y  | kubectl apply -f -
-
-        echo "$yamls" | yq '
-          select(.kind == "Service") |
-            .metadata.labels."control-plane" = "{{.Name}}" |
-            .spec.selector."control-plane" = "{{.Name}}" |
-            .metadata.name = "{{.Name}}"
-        ' -y  | kubectl apply -f -
-
-        echo "$yamls" | yq '
-          select(.kind == "Deployment") | 
-            .metadata.name = "{{.Name}}" |
-            .metadata.labels."control-plane" = "{{.Name}}" |
-            .spec.selector.matchLabels."control-plane" = "{{.Name}}" |
-            .spec.template.metadata.labels."control-plane" = "{{.Name}}"
-        ' -y | kubectl apply -f -
-      - echo "Deployed {{.Name}}"
-
-  deploy:gen-yamls:
-    env:
-      IMG: harbor.dev.madhouselabs.io/dev-kloudlite/koperator-internal-operator:latest
-      NAMESPACE: kl-core
-    vars:
-      Name: kloudlite-internal-operator
-    cmds:
-      # - make dev-docker-build dev-docker-push
-      - |+
-        cd config/manager
-        kustomize edit set image controller=${IMG}
-        kustomize edit set namespace ${NAMESPACE}
-      - |+
-        cd config/default
-        kustomize edit set image controller=${IMG}
-        kustomize edit set namespace ${NAMESPACE}
-      - |+
-        yamls=$(kustomize build config/default | yq 'select(.kind | [.] - ["Deployment", "Service", "ConfigMap", "CustomResourceDefinition"] | length > 0 | not)' -y)
-
-        echo "$yamls" | yq 'select(.kind == "CustomResourceDefinition")' -y
-
+        yamls=$(kustomize build config/default | yq 'select(.kind | [.] - ["Deployment", "Service", "ConfigMap"] | length > 0 | not)' -y)
         echo "---"
         echo "$yamls" | yq '
           select((.kind == "ConfigMap") and (.metadata.name == "manager-config")) |
-          .metadata.name = "{{.Name}}-manager-config"
-        ' -y 
+          .metadata.name = "{{.Name}}-manager-config" |
+          .metadata.namespace = "{{.Namespace}}"
+        ' -y
 
         echo "---"
         echo "$yamls" | yq '
           select(.kind == "Service") |
-            .metadata.labels."control-plane" = "{{.Name}}" |
-            .spec.selector."control-plane" = "{{.Name}}" |
-            .metadata.name = "{{.Name}}"
+          .metadata.labels."control-plane" = "{{.Name}}" |
+          .spec.selector."control-plane" = "{{.Name}}" |
+          .metadata.name = "{{.Name}}" |
+          .metadata.namespace = "{{.Namespace}}"
         ' -y
         echo "---"
         echo "$yamls" | yq '
-          select(.kind == "Deployment") | 
-            .metadata.name = "{{.Name}}" |
-            .metadata.labels."control-plane" = "{{.Name}}" |
-            .spec.selector.matchLabels."control-plane" = "{{.Name}}" |
-            .spec.template.metadata.labels."control-plane" = "{{.Name}}"
+          select(.kind == "Deployment") |
+          .metadata.name = "{{.Name}}" |
+          .metadata.namespace = "{{.Namespace}}" |
+          .metadata.labels."control-plane" = "{{.Name}}" |
+          .spec.selector.matchLabels."control-plane" = "{{.Name}}" |
+          .spec.template.metadata.labels."control-plane" = "{{.Name}}" |
+          .spec.template.spec.containers = (
+            .spec.template.spec.containers | map_values(
+              if .name == "manager" then
+                .image = "{{.Image}}"
+              else . end
+            )
+          )
         ' -y
 
   pre:

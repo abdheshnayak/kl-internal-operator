@@ -33,16 +33,9 @@ spec:
         - --leader-elect
         image: controller:latest
         name: manager
-        env:
-          - name: NAMESERVER_ENDPOINT
-            value: http://dns-api.hotspot
-
-          - name: COMM
-            value: false
-
-          - name: INFRA
-            value: true
-
+        envFrom:
+          - secretRef:
+              name: internal-operator-env
         securityContext:
           allowPrivilegeEscalation: false
         livenessProbe:

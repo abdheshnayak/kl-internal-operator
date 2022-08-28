@@ -72,8 +72,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (c
 
 	req.Logger.Info("##################### NEW RECONCILATION------------------")
 
-	// fmt.Printf("reconcile: %+v\n", req.Object)
-
 	if req == nil {
 		return ctrl.Result{}, nil
 	}
@@ -96,6 +94,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (c
 	}
 
 	fmt.Println("reconcileOperations")
+
 	if x := r.reconcileOperations(req); !x.ShouldProceed() {
 		return x.Result(), x.Err()
 	}
@@ -114,7 +113,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 	isReady := true
 	retry := false
 
-	// check wg namespace
+	// checking wg namespace if not present
 	if err := func() error {
 		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
 			Name: "wg-" + req.Object.Name,
@@ -125,6 +124,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 				return err
 			}
 			isReady = false
+
 			cs = append(cs,
 				conditions.New(
 					"WGNamespaceNotFound",
@@ -169,7 +169,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		return req.FailWithStatusError(err)
 	}
 
-	// check wg public key
+	// check accounts-wg public key generated
 	if err := func() error {
 
 		wgSecrets, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
@@ -191,6 +191,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		}
 
 		rApi.SetLocal(req, "accountWgServerKeys", wgSecrets)
+
+		// check if publicKey is set to DisplayVars if not then set it (will be used by device)
 		existingPublicKey, ok := req.Object.Status.DisplayVars.Get("WGPublicKey")
 		if ok && string(wgSecrets.Data["public-key"]) != existingPublicKey {
 			retry = true
@@ -203,7 +205,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		return req.FailWithStatusError(err)
 	}
 
-	// Generating Services
+	// Generating device Services and also device proxy config
 	if err := func() error {
 		oldConfig, configFetchError := rApi.Get(req.Context(), r.Client, types.NamespacedName{
 			Namespace: "wg-" + req.Object.Name,
@@ -213,23 +215,20 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		cServices := []configService{}
 		configData := []configService{}
 
+		// parsing the value from old config andd adding to the var configData
 		if configFetchError == nil {
 			oConfMap := map[string][]configService{}
-
-			fmt.Println("reading")
-
 			err := json.Unmarshal([]byte(oldConfig.Data["config.json"]), &oConfMap)
 
 			if oConfMap["services"] != nil {
 				configData = oConfMap["services"]
 			}
-
 			if err != nil {
 				return err
 			}
-
 		}
 
+		// method to check either the port exists int the config
 		isContains := func(svce []configService, port int32) bool {
 			for _, s := range svce {
 				if s.ServicePort == port {
@@ -239,6 +238,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			return false
 		}
 
+		// method to finding the unique port to assign to needfull
 		getTempPort := func(svce []configService, id string) int32 {
 			for _, c := range svce {
 				if c.Id == id {
@@ -266,6 +266,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 		var devices managementv1.DeviceList
 
+		// fetching all the devices under the current account
 		err := r.List(req.Context(), &devices,
 			&client.ListOptions{
 				LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
@@ -274,19 +275,17 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			},
 		)
 
+		// sorting the fetched devices
 		sort.Slice(devices.Items, func(i, j int) bool {
 			return devices.Items[i].Name < devices.Items[j].Name
 		})
-
 		// fmt.Printf("devices: %v\n", devices.Items, req.Object.Spec.AccountId)
-
 		if err != nil {
 			return err
 		}
 
+		// generating the latest services and will be applied at in operations sections
 		svcs := []corev1.Service{}
-
-		// fmt.Println("devices", devices)
 		for _, d := range devices.Items {
 			type portStruct struct {
 				Name       string `json:"name"`
@@ -296,13 +295,12 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			}
 
 			ports := []corev1.ServicePort{}
-
 			for _, port := range d.Spec.Ports {
-				tempPort := getTempPort(configData, fmt.Sprint(d.Name, "-", port))
+				tempPort := getTempPort(configData, fmt.Sprint(d.Name, "-", port.Port))
 
 				ports = append(ports, corev1.ServicePort{
-					Name: fmt.Sprint(d.Name, "-", port),
-					Port: port,
+					Name: fmt.Sprint(d.Name, "-", port.Port),
+					Port: port.Port,
 					TargetPort: intstr.IntOrString{
 						Type:   0,
 						IntVal: tempPort,
@@ -310,33 +308,38 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 				})
 
 				dIp, e := getRemoteDeviceIp(int64(d.Spec.Offset))
-
 				if e != nil {
 					fmt.Println(e)
 					continue
 				}
 
 				cServices = append(cServices, configService{
-					Id: fmt.Sprint(d.Name, "-", port),
-					// Name:        d.Annotations["kloudlite.io/device-ip"],
-
-					Name:        dIp.String(),
-					ServicePort: port,
-					ProxyPort:   tempPort,
+					Id:   fmt.Sprint(d.Name, "-", port.Port),
+					Name: dIp.String(),
+					ServicePort: func() int32 {
+						if port.TargetPort != 0 {
+							return port.TargetPort
+						}
+						return port.Port
+					}(),
+					ProxyPort: tempPort,
 				})
 			}
 
+			// finally generating the services
 			svcs = append(svcs, corev1.Service{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      d.Name,
 					Namespace: "wg-" + req.Object.Name,
 					Labels: map[string]string{
-						"proxy-device-service": "true",
+						"proxy-device-service":    "true",
+						"kloudlite.io/device-ref": d.Name,
 					},
-					Annotations: map[string]string{
-						"proxy-device-service": "true",
-					},
+					// Annotations not needed (if will run smooth delete this comment in future)
+					// Annotations: map[string]string{
+					// 	"proxy-device-service": "true",
+					// },
 					OwnerReferences: []metav1.OwnerReference{
 						functions.AsOwner(&d),
 					},
@@ -354,18 +357,15 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		c, err := json.Marshal(map[string][]configService{
 			"services": cServices,
 		})
-
 		if err != nil {
 			return err
 		}
 
+		// checking either the new generated config is equal or not
 		equal := false
-
 		if configFetchError == nil {
 			equal, err = functions.JSONStringsEqual(oldConfig.Data["config.json"], string(c))
-
 			if err != nil {
-				fmt.Println(err)
 				return err
 			}
 
@@ -374,6 +374,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			}
 		}
 
+		// if not equal set the error the status of ther resource
 		if !equal {
 			isReady = false
 			cs = append(cs,
@@ -385,11 +386,11 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 				),
 			)
 		}
+
+		// finally setting the proxy config and the svc to apply on the operation part
 		rApi.SetLocal(req, "device-proxy-config", cServices)
 		rApi.SetLocal(req, "device-proxy-services", svcs)
-		if err != nil {
-			return err
-		}
+
 		return nil
 	}(); err != nil {
 		return req.FailWithStatusError(err)
@@ -408,10 +409,10 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 					Namespace: "wg-" + req.Object.Name,
 				},
 			)
-
 			if err != nil {
 				return err
 			}
+
 			var data struct {
 				AccountWireguardIp     string
 				AccountWireguardPvtKey string
@@ -447,7 +448,6 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			}
 
 			parse, err := templates.Parse(templates.WireGuardConfig, data)
-
 			if err != nil {
 				return err
 			}
@@ -474,9 +474,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 				)
 				return nil
 			}
-			if string(existingConfig.Data["data"]) != string(parse) {
 
-				// fmt.Println("\nChanged\nOLD----------------------------------------------------\n", string(existingConfig.Data["data"]), "\nNew\n-----------------------------------------\n", string(parse))
+			if string(existingConfig.Data["data"]) != string(parse) {
 
 				isReady = false
 				cs = append(cs,
@@ -484,7 +483,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 						"WGServerConfigMatching",
 						false,
 						"NotMatching",
-						"WG Server Config not matching "+"\nChanged\nOLD----------------------------------------------------\n"+string(existingConfig.Data["data"])+"\nNew\n-----------------------------------------\n"+string(parse),
+						"WG Server Config not matching",
 					),
 				)
 			}
@@ -494,19 +493,18 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		return req.FailWithStatusError(err)
 	}
 
-	// fetching regions
+	// fetching regions and setting to local to fetch it later
 	if err := func() error {
 
 		var regions managementv1.RegionList
-
 		err := r.List(req.Context(), &regions)
+
 		if err != nil || len(regions.Items) == 0 {
 			if !apiErrors.IsNotFound(err) {
 				return err
 			}
 
 			isReady = false
-
 			cs = append(cs,
 				conditions.New(
 					"RegionsFound",
@@ -518,28 +516,33 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			return nil
 		}
 
-		rApi.SetLocal(req, "regions", regions)
+		// filtring the regions with is related to current account
+		r2 := []managementv1.Region{}
+		for _, region := range regions.Items {
+			if region.Spec.Account == "" || region.Spec.Account == req.Object.Name {
+				r2 = append(r2, region)
+			}
+		}
+		regions.Items = r2
 
+		rApi.SetLocal(req, "regions", regions)
 		return nil
 	}(); err != nil {
 		return req.FailWithStatusError(err)
 	}
 
-	// check wg deployed or not
+	// check either wg-deployment exists or not if exists the get svc and if svc present then fetch the nodeport and add it to DisplayVars
 	if err := func() error {
-
 		if meta.IsStatusConditionFalse(cs, "RegionsFound") {
 			return nil
 		}
 
 		regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
-
 		if !ok {
 			return fmt.Errorf("CAN'T FETCH REGIONS")
 		}
 
 		var deployments appsv1.DeploymentList
-
 		err := r.Client.List(context.TODO(), &deployments, &client.ListOptions{
 			Namespace: fmt.Sprintf("wg-%s", req.Object.Name),
 			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
@@ -552,23 +555,16 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 				return err
 			}
 			isReady = false
-
 			cs = append(cs, conditions.New("WGDeploymentExists", false, "NotFound", "Deployment not found"))
 		}
 
 		var svcs corev1.ServiceList
-
 		err = r.Client.List(context.TODO(), &svcs, &client.ListOptions{
 			Namespace: fmt.Sprintf("wg-%s", req.Object.Name),
 			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
 				"wireguard-service": "true",
 			}),
 		})
-
-		// svc, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-		// 	Namespace: "wg-" + req.Object.Name,
-		// 	Name:      "wireguard-service",
-		// }, &corev1.Service{})
 
 		if err != nil || len(svcs.Items) == 0 || len(svcs.Items) != len(regions.Items) {
 			if err != nil && !apiErrors.IsNotFound(err) {
@@ -604,15 +600,11 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			}
 
 			lbs := svc.GetLabels()
-
 			if lbs == nil {
 				continue
 			}
-
 			region := lbs["region"]
-
 			req.Object.Status.DisplayVars.Set(fmt.Sprintf("WGNodePort-%s", region), fmt.Sprintf("%d", nodePort))
-
 		}
 
 		return nil
@@ -686,10 +678,10 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.Account]) rApi.StepResult {
 
+	// upsert domains with it's latest ips
 	if err := func() error {
 
 		var regions managementv1.RegionList
-
 		err := r.List(req.Context(), &regions)
 		if err != nil {
 			return err
@@ -698,19 +690,16 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 		for _, region := range regions.Items {
 
 			wgDomain, ok := rApi.GetLocal[string](req, "wg-domain")
-
 			if !ok {
 				return fmt.Errorf("CAN'T WG DOMAINS")
 			}
 
 			ipsAny, ok := region.Status.DisplayVars.Get("kloudlite.io/node-ips")
-
 			if !ok {
 				continue
 			}
 
 			wgBaseDomain := os.Getenv("WG_DOMAIN")
-
 			if wgDomain == "" {
 				return fmt.Errorf(("CAN'T find WG_DOMAIN in environment"))
 			}
@@ -729,6 +718,7 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						functions.AsOwner(req.Object),
+						functions.AsOwner(&region),
 					},
 				},
 				Spec: managementv1.DomainSpec{
@@ -757,118 +747,131 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 		return req.FailWithOpError(err)
 	}
 
-	wgNotReady := func() bool {
-		return meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGNamespaceNotFound") ||
-			meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGNodePortNotReady") ||
-			meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGServiceFound") ||
-			meta.IsStatusConditionFalse(req.Object.Status.Conditions, "DNSServerReady") ||
-			meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGDeploymentExists")
-	}()
-
 	// creating wireguard deployment service and namespace
-	if wgNotReady {
-		var regions managementv1.RegionList
+	if err := func() error {
 
-		err := r.Client.List(req.Context(), &regions)
-		if err != nil {
-			return req.FailWithOpError(err)
+		wgNotReady := func() bool {
+			return meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGNamespaceNotFound") ||
+				meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGNodePortNotReady") ||
+				meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGServiceFound") ||
+				meta.IsStatusConditionFalse(req.Object.Status.Conditions, "DNSServerReady") ||
+				meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGDeploymentExists")
+		}()
+
+		// creating wireguard deployment service and namespace
+		if wgNotReady {
+			var regions managementv1.RegionList
+
+			err := r.Client.List(req.Context(), &regions)
+			if err != nil {
+				return err
+			}
+
+			for _, region := range regions.Items {
+
+				// fmt.Println(".................................")
+				corednsConfigExists := true
+				deviceProxyConfigExists := true
+				if _, err := rApi.Get(req.Context(), r.Client, functions.NN("wg-"+req.Object.Name, "coredns"), &corev1.ConfigMap{}); err != nil {
+					corednsConfigExists = false
+				}
+
+				if _, err := rApi.Get(req.Context(), r.Client, functions.NN("wg-"+req.Object.Name, "device-proxy-config"), &corev1.ConfigMap{}); err != nil {
+					corednsConfigExists = false
+				}
+
+				b, err := templates.Parse(templates.WireGuard, map[string]any{
+					"obj":                        req.Object,
+					"owner-refs":                 functions.AsOwner(req.Object, true),
+					"region-owner-refs":          functions.AsOwner(&region),
+					"region":                     region.Name,
+					"coredns-config-exists":      corednsConfigExists,
+					"device-proxy-config-exists": deviceProxyConfigExists,
+				})
+				if err != nil {
+					return err
+				}
+
+				// fmt.Printf("template: %s\n", string(b))
+				// fmt.Println(string(b))
+
+				_, err = functions.KubectlApplyExec(b)
+
+				// fmt.Println(o.String())
+
+				if err != nil {
+					return err
+				}
+			}
+
+			req.Done(&ctrl.Result{Requeue: true})
 		}
 
-		for _, region := range regions.Items {
-
-			// fmt.Println(".................................")
-			corednsConfigExists := true
-			deviceProxyConfigExists := true
-			if _, err := rApi.Get(req.Context(), r.Client, functions.NN("wg-"+req.Object.Name, "coredns"), &corev1.ConfigMap{}); err != nil {
-				corednsConfigExists = false
-			}
-
-			if _, err := rApi.Get(req.Context(), r.Client, functions.NN("wg-"+req.Object.Name, "device-proxy-config"), &corev1.ConfigMap{}); err != nil {
-				corednsConfigExists = false
-			}
-
-			b, err := templates.Parse(templates.WireGuard, map[string]any{
-				"obj":                        req.Object,
-				"owner-refs":                 functions.AsOwner(req.Object, true),
-				"region-owner-refs":          functions.AsOwner(&region),
-				"region":                     region.Name,
-				"coredns-config-exists":      corednsConfigExists,
-				"device-proxy-config-exists": deviceProxyConfigExists,
-			})
-
-			// fmt.Printf("template: %s\n", string(b))
-
-			if err != nil {
-				return req.FailWithOpError(err)
-			}
-
-			// fmt.Println(string(b))
-
-			_, err = functions.KubectlApplyExec(b)
-
-			// fmt.Println(o.String())
-
-			if err != nil {
-				return req.FailWithOpError(err)
-			}
-
-		}
-
-		req.Done(&ctrl.Result{Requeue: true})
+		return nil
+	}(); err != nil {
+		return req.FailWithOpError(err)
 	}
 
 	// generating wireguard server config
-	if meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGSecretNotFound") {
-		pub, priv, err := wireguard.GenerateWgKeys()
+	if err := func() error {
+		if meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGSecretNotFound") {
+			pub, priv, err := wireguard.GenerateWgKeys()
+			if err != nil {
+				return err
+			}
 
-		if err != nil {
-			fmt.Println("kk", err)
-			return req.FailWithOpError(err)
-		}
-
-		err = functions.KubectlApply(req.Context(), r.Client,
-			functions.ParseSecret(&corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "wg-server-keys",
-					Namespace: "wg-" + req.Object.Name,
-					OwnerReferences: []metav1.OwnerReference{
-						functions.AsOwner(req.Object, true),
+			err = functions.KubectlApply(req.Context(), r.Client,
+				functions.ParseSecret(&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "wg-server-keys",
+						Namespace: "wg-" + req.Object.Name,
+						OwnerReferences: []metav1.OwnerReference{
+							functions.AsOwner(req.Object, true),
+						},
 					},
-				},
-				Data: map[string][]byte{
-					"private-key": []byte(priv),
-					"public-key":  []byte(pub),
-				},
-			}))
-
-		if err != nil {
-			fmt.Println("err", err)
-			return req.FailWithOpError(err)
+					Data: map[string][]byte{
+						"private-key": []byte(priv),
+						"public-key":  []byte(pub),
+					},
+				}))
+			if err != nil {
+				return err
+			}
 		}
 
+		return nil
+	}(); err != nil {
+		return req.FailWithOpError(err)
 	}
 
 	// storing wg server config into secret
-	if meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGServerConfigExists") {
-		serverConfig, ok := rApi.GetLocal[string](req, "serverWgConfig")
-		if !ok {
-			return req.FailWithOpError(errors.New("serverWgConfig not found"))
-		}
-		err := r.Client.Create(req.Context(), &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "wg-server-config",
-				Namespace: "wg-" + req.Object.Name,
-				OwnerReferences: []metav1.OwnerReference{
-					functions.AsOwner(req.Object),
+	if err := func() error {
+		// storing wg server config into secret
+		if meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGServerConfigExists") {
+			serverConfig, ok := rApi.GetLocal[string](req, "serverWgConfig")
+			if !ok {
+				return errors.New("serverWgConfig not found")
+			}
+
+			err := r.Client.Create(req.Context(), &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "wg-server-config",
+					Namespace: "wg-" + req.Object.Name,
+					OwnerReferences: []metav1.OwnerReference{
+						functions.AsOwner(req.Object),
+					},
 				},
-			},
-			Data: map[string][]byte{
-				"data": []byte(serverConfig),
-			},
-		})
-		if err != nil {
-			return req.FailWithOpError(err)
+				Data: map[string][]byte{
+					"data": []byte(serverConfig),
+				},
+			})
+			if err != nil {
+				return err
+			}
 		}
+		return nil
+	}(); err != nil {
+		return req.FailWithOpError(err)
 	}
 
 	// updating wireguard server config
@@ -891,8 +894,29 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 			if err != nil {
 				return err
 			}
-			// TODO don't restart
-			functions.Kubectl("-n", fmt.Sprintf("wg-%s", req.Object.Name), "rollout", "restart", "deployments", "-l", "wireguard-deployment=true")
+
+			regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
+			if !ok {
+				return errors.New("Regions not found")
+			}
+
+			var updateError error
+			for _, region := range regions.Items {
+
+				_, err = http.Post(fmt.Sprintf("http://wg-api-service-%s.wg-%s.svc.cluster.local:2998/post", region.Name, req.Object.Name), "application/json", bytes.NewBuffer([]byte(serverConfig)))
+
+				if err != nil {
+					fmt.Println(region.Name, ":", err)
+					updateError = err
+				}
+			}
+
+			if updateError != nil {
+				return updateError
+			}
+
+			// TODO: don't restart
+			// functions.Kubectl("-n", fmt.Sprintf("wg-%s", req.Object.Name), "rollout", "restart", "deployments", "-l", "wireguard-deployment=true")
 			// Ignoring error of rollout
 		}
 
@@ -903,29 +927,23 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 
 	// updating device proxy config and services
 	if err := func() error {
-		if !rApi.HasLocal(req, "device-proxy-config") || !rApi.HasLocal(req, "device-proxy-services") {
-			return fmt.Errorf("DeviceConfig & ServiceConfig Not found2")
-		}
-
 		if !meta.IsStatusConditionFalse(req.Object.Status.Conditions, "DevicePorxyConfigMatching") {
 			return nil
 		}
 
-		configs, ok := rApi.GetLocal[[]configService](req, "device-proxy-config")
+		if !rApi.HasLocal(req, "device-proxy-config") || !rApi.HasLocal(req, "device-proxy-services") {
+			return fmt.Errorf("DeviceConfig & ServiceConfig Not found")
+		}
 
+		configs, ok := rApi.GetLocal[[]configService](req, "device-proxy-config")
 		if !ok {
 			return fmt.Errorf("failed to fetch device-proxy-config")
 		}
 
 		services, ok := rApi.GetLocal[[]corev1.Service](req, "device-proxy-services")
-
 		if !ok {
 			return fmt.Errorf("failed to fetch device-proxy-services")
 		}
-
-		// for _, c := range configs {
-		// 	fmt.Println(c.Id)
-		// }
 
 		// fmt.Printf("config,services: %+v\n%+v\n", configs, services)
 		b, err := templates.Parse(templates.ProxyDevice, map[string]any{
@@ -940,24 +958,21 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 		})
 
 		if err != nil {
-			fmt.Println(err)
 			return err
 		}
 
 		// fmt.Println(string(b))
 		_, err = functions.KubectlApplyExec(b)
 
+		// fmt.Println(string(b))
 		if err != nil {
-			fmt.Println("hree:", err)
 			return err
 		}
 
 		configJson, err := json.Marshal(map[string][]configService{
 			"services": configs,
 		})
-
 		if err != nil {
-			fmt.Println(err)
 			return err
 		}
 
@@ -968,40 +983,17 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 
 		var updateError error
 		for _, region := range regions.Items {
-			_, err = http.Post(fmt.Sprintf("http://proxy-service-%s.wg-%s.svc.cluster.local/post", region.Name, req.Object.Name), "application/json", bytes.NewBuffer(configJson))
-			// fmt.Println(resp)
+
+			_, err = http.Post(fmt.Sprintf("http://wg-api-service-%s.wg-%s.svc.cluster.local:2999/post", region.Name, req.Object.Name), "application/json", bytes.NewBuffer(configJson))
+
 			if err != nil {
 				fmt.Println(region.Name, ":", err)
 				updateError = err
 			}
-			// fmt.Println(fmt.Sprintf("proxy-service-%s.wg-%s/post", region.Name, req.Object.Name))
-
 		}
-
 		if updateError != nil {
-			return err
+			return updateError
 		}
-		// regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
-		// if !ok {
-		// 	return errors.New("Regions not found")
-		// }
-
-		// var restartError error
-		// for _, region := range regions.Items {
-		// functions.Kubectl("-n", fmt.Sprintf("wg-%s", req.Object.Name), "rollout", "restart", fmt.Sprintf("deployment/%v", "wireguard-deployment"))
-
-		// _, err = functions.Kubectl("-n", fmt.Sprintf("wg-%s", req.Object.Name), "rollout", "restart", fmt.Sprintf("deployment/%v-%s-k", "wireguard-deployment", region.Name))
-
-		// if err != nil {
-		// 	fmt.Println(err)
-		// 	restartError = err
-		// }
-
-		// if restartError != nil {
-		// 	return restartError
-		// }
-
-		// }
 
 		return nil
 	}(); err != nil {
@@ -1038,26 +1030,52 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 		})).
 		Watches(&source.Kind{Type: &managementv1.Region{}}, handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
+
 			if object.GetLabels() == nil {
 				return nil
 			}
+
+			l := object.GetLabels()
+			accountId := l["kloudlite.io/account-ref"]
+
 			var accounts managementv1.AccountList
-
-			err := r.Client.List(context.TODO(), &accounts, &client.ListOptions{
-				LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{}),
-			})
-
-			if err != nil {
-				return nil
-			}
-
 			results := []reconcile.Request{}
-			for _, account := range accounts.Items {
+			ctx := context.TODO()
+
+			if accountId == "" {
+				err := r.Client.List(ctx, &accounts, &client.ListOptions{
+					LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{}),
+				})
+				if err != nil {
+					return nil
+				}
+
+				for _, account := range accounts.Items {
+					results = append(results, reconcile.Request{
+						NamespacedName: types.NamespacedName{
+							Name: account.Name,
+						},
+					})
+				}
+			} else {
+
+				account, err := rApi.Get(ctx, r.Client,
+					types.NamespacedName{
+						Name: accountId,
+					}, &managementv1.Account{},
+				)
+				if err != nil {
+					return nil
+				}
+
 				results = append(results, reconcile.Request{
 					NamespacedName: types.NamespacedName{
 						Name: account.Name,
 					},
 				})
+			}
+			if len(results) == 0 {
+				return nil
 			}
 
 			return results

@@ -49,7 +49,7 @@ spec:
         kloudlite.io/region: {{$region}}
       containers:
       - name: proxy
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         image: harbor.dev.madhouselabs.io/public/kloudlite/proxy:v2
         env:
           - name: CONFIG_FILE
@@ -60,19 +60,21 @@ spec:
             name: config-path
 
       - name: wireguard
-        image: ghcr.io/linuxserver/wireguard
-        command:
-          - sh
-          - -c
-          - |-
-            wg-quick up wg0 
+        # image: ghcr.io/linuxserver/wireguard
+        imagePullPolicy: IfNotPresent
+        image: harbor.dev.madhouselabs.io/public/kloudlite/wg-restart:v2
+        # command:
+        #   - sh
+        #   - -c
+        #   - |-
+        #     wg-quick up wg0 
 
-            while [ true ];
-            do
-              x=$(wg | wc -l)
-              [ $x -eq 0 ] && exit 1
-              sleep 1;
-            done
+        #     while [ true ];
+        #     do
+        #       x=$(wg | wc -l)
+        #       [ $x -eq 0 ] && exit 1
+        #       sleep 1;
+        #     done
         securityContext:
           capabilities:
             add:
@@ -81,7 +83,8 @@ spec:
           privileged: true
         volumeMounts:
           - name: wg-config
-            mountPath: /etc/wireguard
+            mountPath: /etc/wireguard/wg0.conf
+            subPath: wg0.conf
           - name: host-volumes
             mountPath: /lib/modules
         ports:
@@ -148,15 +151,17 @@ metadata:
   labels:
     proxy-api: "true"
     region: {{$region}}
-  name: "proxy-service-{{$region}}"
+  name: "wg-api-service-{{$region}}"
   namespace: "wg-{{.Name}}"
   ownerReferences:
     - {{ $ownerRefs | toJson }}
     - {{ $regionOwnerRefs | toJson }}
 spec:
   ports:
-    - port: 80
-      targetPort: 2999
+    - port: 2999
+      name: proxy-restart
+    - port: 2998
+      name: wg-restart
   selector:
     app: "wireguard-{{$region}}"
 
@@ -351,7 +356,7 @@ spec:
   ingress:
     - from:
         - ipBlock:
-            cidr: 10.0.0.0/8
+            cidr: 0.0.0.0/0
       ports:
         - protocol: UDP
           port: 51820

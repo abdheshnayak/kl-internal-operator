@@ -3,12 +3,14 @@ package commoncontroller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"time"
 
 	apiLabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"operators.kloudlite.io/lib/constants"
 	"operators.kloudlite.io/lib/templates"
@@ -26,6 +28,9 @@ import (
 	"operators.kloudlite.io/lib/wireguard"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	managementv1 "operators.kloudlite.io/apis/management/v1"
 )
@@ -48,7 +53,6 @@ type DeviceReconciler struct {
 func (r *DeviceReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
 
 	req := rApi.NewRequest(ctx, r.Client, oReq.NamespacedName, &managementv1.Device{})
-
 	if req == nil {
 		return ctrl.Result{}, nil
 	}
@@ -202,7 +206,6 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 
 		if err == nil {
 			rApi.SetLocal(req, "dns-devices", string(dnsConf.Data["devices"]))
-			fmt.Println(string(dnsConf.Data["devices"]), "...........................................here", req.Object.Spec.Account)
 		}
 
 		dnsSvc, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
@@ -237,6 +240,173 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 
 			return nil
 		}
+
+		return nil
+	}(); err != nil {
+		return req.FailWithStatusError(err)
+	}
+
+	// check if anythin update in service
+	if err := func() error {
+		service, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
+			Namespace: "wg-" + req.Object.Spec.Account,
+			Name:      req.Object.Name,
+		}, &corev1.Service{})
+		if err != nil {
+			if !apiErrors.IsNotFound(err) {
+				return err
+			}
+
+			isReady = false
+			cs = append(cs,
+				conditions.New(
+					"DeviceServiceChanged",
+					false,
+					"Updted",
+					"Device Service is not created yet",
+				),
+			)
+
+			return nil
+		}
+
+		var region string
+
+		if service.Spec.Selector != nil && service.Spec.Selector["region"] != "" {
+			region = service.Spec.Selector["region"]
+			if region != req.Object.Spec.ActiveRegion {
+				isReady = false
+				cs = append(cs,
+					conditions.New(
+						"DeviceServiceChanged",
+						false,
+						"Updted",
+						"Device Service is not created yet",
+					),
+				)
+
+				return nil
+			}
+		}
+
+		return nil
+	}(); err != nil {
+		return req.FailWithStatusError(err)
+	}
+
+	// if region updated update service
+	if err := func() error {
+
+		if !meta.IsStatusConditionFalse(cs, "DeviceServiceChanged") {
+			return nil
+		}
+
+		accountId := req.Object.Labels["kloudlite.io/account-ref"]
+
+		config, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
+			Namespace: "wg-" + accountId,
+			Name:      "device-proxy-config",
+		}, &corev1.ConfigMap{})
+
+		if err != nil {
+			if !apiErrors.IsNotFound(err) {
+				return err
+			}
+
+			isReady = false
+			cs = append(cs,
+				conditions.New(
+					"ProxyConfigGenerated",
+					false,
+					"NotFound",
+					"Proxy Config not created yet",
+				),
+			)
+
+			return nil
+		}
+
+		type configService struct {
+			Id          string `json:"id"`
+			Name        string `json:"name"`
+			ServicePort int32  `json:"servicePort"`
+			ProxyPort   int32  `json:"proxyPort"`
+		}
+
+		configData := []configService{}
+
+		oConfMap := map[string][]configService{}
+		err = json.Unmarshal([]byte(config.Data["config.json"]), &oConfMap)
+
+		if oConfMap["services"] != nil {
+			configData = oConfMap["services"]
+		}
+		if err != nil {
+			return err
+		}
+
+		// method to check either the port exists int the config
+		getPort := func(svce []configService, id string) (int32, error) {
+			for _, s := range svce {
+				if s.Id == id {
+					return s.ProxyPort, nil
+				}
+			}
+			return 0, errors.New("proxy port not found in proxy config")
+		}
+
+		sPorts := []corev1.ServicePort{}
+		for _, v := range req.Object.Spec.Ports {
+
+			proxyPort, err := getPort(configData, fmt.Sprint(req.Object.Name, "-", v.Port))
+			if err != nil {
+				return err
+			}
+
+			sPorts = append(sPorts, corev1.ServicePort{
+				Name: fmt.Sprint(req.Object.Name, "-", v.Port),
+				Port: v.Port,
+				TargetPort: intstr.IntOrString{
+					Type:   0,
+					IntVal: proxyPort,
+				},
+			})
+		}
+
+		svc := corev1.Service{
+			TypeMeta: metav1.TypeMeta{},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      req.Object.Name,
+				Namespace: "wg-" + accountId,
+				Labels: map[string]string{
+					"proxy-device-service":    "true",
+					"kloudlite.io/device-ref": req.Object.Name,
+				},
+				OwnerReferences: []metav1.OwnerReference{
+					functions.AsOwner(req.Object),
+				},
+			},
+			Spec: corev1.ServiceSpec{
+				Ports: func() []corev1.ServicePort {
+					if len(sPorts) == 0 {
+						sPorts = append(sPorts, corev1.ServicePort{
+							Name: "temp",
+							Port: 80,
+							TargetPort: intstr.IntOrString{
+								Type:   0,
+								IntVal: 0,
+							},
+						})
+					}
+					return sPorts
+				}(),
+				Selector: map[string]string{
+					"region": req.Object.Spec.ActiveRegion,
+				},
+			},
+		}
+
+		rApi.SetLocal(req, "device-service", svc)
 
 		return nil
 	}(); err != nil {
@@ -453,7 +623,8 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 				Namespace: "wg-" + req.Object.Spec.Account,
 				Labels: map[string]string{
 					"kloudlite.io/wg-device-config": "true",
-					"kloudlite.io/account-ref":       req.Object.Spec.Account,
+					"kloudlite.io/account-ref":      req.Object.Spec.Account,
+					"kloudlite.io/device-ref":       req.Object.Name,
 				},
 				OwnerReferences: []metav1.OwnerReference{
 					functions.AsOwner(req.Object),
@@ -589,7 +760,8 @@ func (r *DeviceReconciler) reconcileOperations(req *rApi.Request[*managementv1.D
 					Namespace: "wg-" + req.Object.Spec.Account,
 					Name:      fmt.Sprintf("wg-device-keys-%s", req.Object.Name),
 					Labels: map[string]string{
-						"kloudlite.io/is-wg-key": "true",
+						"kloudlite.io/is-wg-key":  "true",
+						"kloudlite.io/device-ref": req.Object.Name,
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						functions.AsOwner(req.Object, true),
@@ -636,23 +808,31 @@ func (r *DeviceReconciler) reconcileOperations(req *rApi.Request[*managementv1.D
 
 	}
 
-	// if meta.IsStatusConditionFalse(req.Object.Status.Conditions, "DeviceExistInDC") {
+	if err := func() error {
 
-	// 	if err := func() error {
-	// 		parse, err := templates.Parse(templates.Device, req.Object)
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		// fmt.Println(string(parse))
-	// 		_, err = functions.KubectlApplyExec(parse)
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		return nil
-	// 	}(); err != nil {
-	// 		return req.FailWithOpError(err)
-	// 	}
-	// }
+		if !meta.IsStatusConditionFalse(req.Object.Status.Conditions, "DeviceServiceChanged") {
+			return nil
+		}
+
+		deviceService, ok := rApi.GetLocal[corev1.Service](req, "device-service")
+		if !ok {
+			return errors.New("Can't find generated service")
+		}
+
+		b, err := templates.Parse(templates.ProxyService, deviceService)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(b))
+		_, err = functions.KubectlApplyExec(b)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		return req.FailWithOpError(err)
+	}
 
 	return req.Done()
 }
@@ -662,5 +842,27 @@ func (r *DeviceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&managementv1.Device{}).
 		Owns(&corev1.Secret{}).
+		Owns(&corev1.Service{}).
+		Watches(&source.Kind{Type: &corev1.Service{}}, handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
+			if object.GetLabels() == nil {
+				return nil
+			}
+
+			l := object.GetLabels()
+			deviceId := l["kloudlite.io/device-ref"]
+			if deviceId == "" {
+				return nil
+			}
+
+			results := []reconcile.Request{}
+
+			results = append(results, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name: deviceId,
+				},
+			})
+
+			return results
+		})).
 		Complete(r)
 }

@@ -38,9 +38,7 @@ type Domain struct {
 }
 
 func (d *Domain) GetEnsuredLabels() map[string]string {
-	return map[string]string{
-		"name": d.Spec.Name,
-	}
+	return map[string]string{}
 }
 
 func (d *Domain) GetStatus() *rApi.Status {

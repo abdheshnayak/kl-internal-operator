@@ -14,7 +14,8 @@ type RegionSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of Region. Edit region_types.go to remove/update
-	Name string `json:"name,omitempty"`
+	Name    string `json:"name"`
+	Account string `json:"account,omitempty"`
 }
 
 // RegionStatus defines the observed state of Region
@@ -38,7 +39,8 @@ type Region struct {
 
 func (r *Region) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"kloudlite.io/region": r.Spec.Name,
+		"kloudlite.io/region":      r.Spec.Name,
+		"kloudlite.io/account-ref": r.Spec.Account,
 	}
 }
 

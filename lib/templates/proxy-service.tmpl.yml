@@ -1,81 +1,12 @@
-{{- $clusterName := get . "cluster-name"}}
-{{- $obj := get . "object"}}
-{{- $svcName := get . "service-name"}}
-{{- $svcPorts := get . "service-ports"}}
-{{- $configData := get . "configmap"}}
-
-{{- with $obj }}
-apiVersion: v1
 kind: Service
-metadata:
-  namespace: {{.Namespace}}
-  name: {{$svcName}}
-  ownerReferences:
-    - apiVersion: {{.APIVersion}}
-      kind: {{.Kind}}
-      name: {{.Name}}
-      uid: {{.UID}}
-      controller: false
-      blockOwnerDeletion: true
-  labels:
-    kloudlite.io/proxy-server: "true"
-spec:
-  selector:
-    kloudlite.io/proxy-server: "true"
-  ports: 
-    {{- range $value := $svcPorts }}
-    - name: {{$value.Name}}
-      protocol: {{$value.Protocol}}
-      port: {{$value.Port}}
-      targetPort: {{$value.TargetPort}}
-    {{- end}}
-    
----
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: proxy-server
-  namespace: {{.Namespace}}
-  labels: &labelRef
-    kloudlite.io/proxy-server: "true"
-spec:
-  selector:
-    matchLabels: *labelRef
-  template:
-    metadata:
-      labels: *labelRef
-    spec:
-      containers:
-      - name: main
-        imagePullPolicy: Always
-        image: registry.gitlab.com/abdheshnayak/sshd:proxy
-        env:
-          - name: CONFIG_FILE
-            value: /proxy-config/config.json
-
-        volumeMounts:
-          - mountPath: /proxy-config
-            name: config-path
-          
-      volumes:
-        - name: config-path
-          configMap:
-            name: "proxy-config-{{.Namespace}}"
-            items:
-              - key: config.json
-                path: config.json
-
----
-
 apiVersion: v1
-kind: ConfigMap
 metadata:
-  name: "proxy-config-{{.Namespace}}"
+  name: {{.Name}}
   namespace: {{.Namespace}}
-data:
-  config.json: |
-    {{$configData}}
+  labels: {{.Labels | toJson }}
+  annotations: {{.Annotations | toJson }}
+  ownerReferences: {{.OwnerReferences | toJson}}
+spec:
+  ports: {{.Spec.Ports | toJson}}
+  selector: {{.Spec.Selector | toJson}}
 
-
-{{- end}}

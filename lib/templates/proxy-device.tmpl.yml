@@ -8,6 +8,8 @@ kind: ConfigMap
 metadata:
   name: "device-proxy-config"
   namespace: {{$namespace}}
+  # labels: {{.Labels | toJson }}
+  # annotations: {{.Annotations | toJson}}
   ownerReferences: {{$accountRefs | toJson}}
 data:
   config.json: |
@@ -26,6 +28,8 @@ metadata:
   #   mirror.linkerd.io/exported: "true"
   name: {{.Name}}
   namespace: {{.Namespace}}
+  labels: {{.Labels | toJson }}
+  annotations: {{.Annotations | toJson }}
   ownerReferences: {{.OwnerReferences | toJson}}
 spec:
   ports: {{.Spec.Ports | toJson}}

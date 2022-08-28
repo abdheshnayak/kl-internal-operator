@@ -105,7 +105,7 @@ func main() {
 				Port:                       9443,
 				HealthProbeBindAddress:     probeAddr,
 				LeaderElection:             enableLeaderElection,
-				LeaderElectionID:           "bf38d2f9.kloudlite.io",
+				LeaderElectionID:           "internal-operator.kloudlite.io",
 				LeaderElectionResourceLock: "configmaps",
 			},
 		)
@@ -122,7 +122,7 @@ func main() {
 				Port:                       9443,
 				HealthProbeBindAddress:     probeAddr,
 				LeaderElection:             enableLeaderElection,
-				LeaderElectionID:           "bf38d2f9.kloudlite.io",
+				LeaderElectionID:           "internal-operator.kloudlite.io",
 				LeaderElectionResourceLock: "configmaps",
 			},
 		)

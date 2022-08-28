@@ -47,10 +47,19 @@ spec:
                 type: integer
               ports:
                 items:
-                  format: int32
-                  type: integer
+                  properties:
+                    port:
+                      format: int32
+                      type: integer
+                    targetPort:
+                      format: int32
+                      type: integer
+                  type: object
                 type: array
             required:
+            - account
+            - deviceId
+            - deviceName
             - offset
             type: object
           status:
