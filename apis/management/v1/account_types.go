@@ -10,7 +10,8 @@ type AccountSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	AccountId string `json:"accountId,omitempty"`
+	AccountId    string   `json:"accountId,omitempty"`
+	OwnedDomains []string `json:"ownedDomains,omitempty"`
 }
 
 // AccountStatus defines the observed state of Account

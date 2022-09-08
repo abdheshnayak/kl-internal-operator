@@ -37,6 +37,10 @@ spec:
             properties:
               accountId:
                 type: string
+              ownedDomains:
+                items:
+                  type: string
+                type: array
             type: object
           status:
             properties:
