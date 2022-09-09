@@ -113,6 +113,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 	isReady := true
 	retry := false
 
+	fmt.Println(req.Object.Name)
+
 	// checking wg namespace if not present
 	if err := func() error {
 		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
@@ -325,6 +327,16 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 					ProxyPort: tempPort,
 				})
 			}
+			if len(ports) == 0 {
+				ports = append(ports, corev1.ServicePort{
+					Name: "temp",
+					Port: 3000,
+					TargetPort: intstr.IntOrString{
+						Type:   0,
+						IntVal: 3000,
+					},
+				})
+			}
 
 			// finally generating the services
 			svcs = append(svcs, corev1.Service{
@@ -353,6 +365,9 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 				},
 			})
 		}
+		sort.Slice(cServices, func(i, j int) bool {
+			return cServices[i].Name < cServices[j].Name
+		})
 
 		c, err := json.Marshal(map[string][]configService{
 			"services": cServices,
@@ -364,6 +379,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		// checking either the new generated config is equal or not
 		equal := false
 		if configFetchError == nil {
+			//fmt.Println(oldConfig.Data["config.json"], string(c))
 			equal, err = functions.JSONStringsEqual(oldConfig.Data["config.json"], string(c))
 			if err != nil {
 				return err
@@ -379,7 +395,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			isReady = false
 			cs = append(cs,
 				conditions.New(
-					"DevicePorxyConfigMatching",
+					"DeviceProxyConfigMatching",
 					false,
 					"NotFound",
 					"Devices are updated",
@@ -927,7 +943,7 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 
 	// updating device proxy config and services
 	if err := func() error {
-		if !meta.IsStatusConditionFalse(req.Object.Status.Conditions, "DevicePorxyConfigMatching") {
+		if !meta.IsStatusConditionFalse(req.Object.Status.Conditions, "DeviceProxyConfigMatching") {
 			return nil
 		}
 
@@ -945,6 +961,10 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 			return fmt.Errorf("failed to fetch device-proxy-services")
 		}
 
+		sort.Slice(configs, func(i, j int) bool {
+			return configs[i].Name < configs[j].Name
+		})
+
 		// fmt.Printf("config,services: %+v\n%+v\n", configs, services)
 		b, err := templates.Parse(templates.ProxyDevice, map[string]any{
 			"services": services,
@@ -961,7 +981,7 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 			return err
 		}
 
-		// fmt.Println(string(b))
+		//fmt.Println(string(b))
 		_, err = functions.KubectlApplyExec(b)
 
 		// fmt.Println(string(b))
