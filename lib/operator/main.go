@@ -27,6 +27,7 @@ type Status struct {
 	Conditions       []metav1.Condition  `json:"conditions,omitempty"`
 	StatusConditions []metav1.Condition  `json:"statusConditions,omitempty"`
 	OpsConditions    []metav1.Condition  `json:"opsConditions,omitempty"`
+	Message          string              `json:"message,omitempty"`
 }
 
 type Resource interface {
@@ -210,6 +211,7 @@ func (r *Request[T]) Next() StepResult {
 }
 
 func (r *Request[T]) Finalize() StepResult {
+	controllerutil.RemoveFinalizer(r.Object, constants.KlFinalizer)
 	controllerutil.RemoveFinalizer(r.Object, constants.CommonFinalizer)
 	controllerutil.RemoveFinalizer(r.Object, constants.ForegroundFinalizer)
 	return NewStepResult(&ctrl.Result{}, r.client.Update(r.ctx, r.Object))

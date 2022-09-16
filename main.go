@@ -134,9 +134,9 @@ func main() {
 	}
 
 	func() {
-		// if os.Getenv("COMM") != "true" {
-		// 	return
-		// }
+		if os.Getenv("COMM") != "true" {
+			return
+		}
 
 		if err := (&commoncontroller.AccountReconciler{
 			Client: mgr.GetClient(),
@@ -174,6 +174,14 @@ func main() {
 	func() {
 		if os.Getenv("INFRA") != "true" {
 			return
+		}
+
+		if err := (&infracontrollers.NodePoolReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "NodePool")
+			os.Exit(1)
 		}
 
 		if err := (&infracontrollers.AccountNodeReconciler{

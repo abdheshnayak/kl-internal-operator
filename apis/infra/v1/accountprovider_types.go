@@ -8,7 +8,7 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type AccountProviderCredientials struct {
+type AccountProviderCrediential struct {
 	SecretName string `json:"secretName,omitempty"`
 	Namespace  string `json:"namespace,omitempty"`
 	Key        string `json:"key,omitempty"`
@@ -20,9 +20,9 @@ type AccountProviderSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of AccountProvider. Edit accountprovider_types.go to remove/update
-	Provider string `json:"provider,omitempty"`
-
-	CredentialsRef AccountProviderCredientials `json:"credentialsRef,omitempty"`
+	AccountId      string                     `json:"accountId,omitempty"`
+	Provider       string                     `json:"provider,omitempty"`
+	CredentialsRef AccountProviderCrediential `json:"credentialsRef,omitempty"`
 }
 
 //+kubebuilder:object:root=true

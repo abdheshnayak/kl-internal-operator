@@ -1,0 +1,125 @@
+{{- $name := get . "name"}}
+{{- $namespace := get . "namespace"}}
+{{- $nodeConfig := get . "nodeConfig"}}
+{{- $klConfig := get . "klConfig"}}
+{{- $provider := get . "provider"}}
+{{- $ownerRefs := get . "owner-refs" }}
+{{- $labels := get . "labels" }}
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{$name}}
+  namespace: {{$namespace}}
+  ownerReferences: {{$ownerRefs | toJson}}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      # serviceAccount: cluster-kloudlite-svc-account
+      serviceAccountName: kloudlite-cluster-svc-account
+      containers:
+      - image: harbor.dev.madhouselabs.io/kloudlite/nodectrl:v2 
+        name: nodectrl
+        imagePullPolicy: Always
+        command:
+          - /bin/sh
+          - -c
+          - |+
+            trap 'touch /usr/share/pod/done' EXIT
+
+            while [ ! -f "$S3_DIR/checkpoint" ] 
+            do
+              sleep 2
+            done
+            mkdir -p /home/nonroot/ssh
+            cat /ssh/access.pub > /home/nonroot/ssh/access.pub
+            cat /ssh/id_rsa > /home/nonroot/ssh/id_rsa
+            chown -R nonroot:nonroot /home/nonroot/ssh
+            chmod 400 /home/nonroot/ssh/id_rsa
+            # tail -f /dev/null
+            ./nodectrl
+
+        # securityContext:
+        #   runAsNonRoot: true
+        #   runAsUser: 1000
+        resources: {} #  needed to add after inspection
+        env:
+        - name: KL_CONFIG
+          value: {{ $klConfig }}
+        - name: NODE_CONFIG
+          value: {{ $nodeConfig }}
+        - name: PROVIDER
+          value: {{ $provider }}
+        - name: LABELS
+          value: {{ $labels | toJson | squote }}
+        - name: S3_DIR
+          value: /terraform/storage
+
+        volumeMounts:
+
+          - mountPath: /terraform/storage
+            mountPropagation: HostToContainer
+            name: shared-data
+
+          - name: node-ssh
+            mountPath: /ssh
+
+          - mountPath: /usr/share/pod
+            name: tmp-pod
+
+      - image: nxtcoder17/s3fs-mount:v1.0.0
+        name: spaces-sidecar
+        envFrom:
+          - secretRef:
+              name: s3-secret
+          - configMapRef:
+              name: s3-config
+        env:
+          - name: MOUNT_DIR
+            value: "/data"
+          - name: "BUCKET_DIR"
+            value: /terraform/storage  # mount example-bucket/images
+        imagePullPolicy: Always
+        command:
+          - bash
+          - -c
+          - |+
+            chown -R 1000:1000 $MOUNT_DIR
+            bash run.sh &
+            while ! test -f /usr/share/pod/done; do
+              # echo 'Waiting for the agent pod to finish...'
+              sleep 5
+            done
+            # echo "Agent pod finished, exiting"
+            exit 0
+        resources:
+          requests:
+            cpu: 150m
+            memory: 150Mi
+          limits:
+            cpu: 200m
+            memory: 200Mi
+        securityContext:
+          capabilities:
+            add:
+            - SYS_ADMIN
+          privileged: true
+        volumeMounts:
+        - mountPath: /data
+          mountPropagation: Bidirectional
+          name: shared-data
+
+        - mountPath: /usr/share/pod
+          name: tmp-pod
+
+      volumes:
+        - name: node-ssh
+          secret:
+            secretName: node-ssh
+            defaultMode: 0404
+        - emptyDir: {}
+          name: shared-data
+
+        - emptyDir: {}
+          name: tmp-pod

@@ -3,13 +3,17 @@ package functions
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-	"os/exec"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"operators.kloudlite.io/lib/errors"
@@ -28,6 +32,32 @@ func KubectlApplyExec(stdin ...[]byte) (stdout *bytes.Buffer, err error) {
 	return outStream, nil
 }
 
+func ExecCmd(cmdString string, logStr string) ([]byte, error) {
+	r := csv.NewReader(strings.NewReader(cmdString))
+	r.Comma = ' '
+	cmdArr, err := r.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	if logStr != "" {
+		fmt.Printf("[#] %s\n", logStr)
+	} else {
+		fmt.Printf("[#] %s\n", strings.Join(cmdArr, " "))
+	}
+
+	cmd := exec.Command(cmdArr[0], cmdArr[1:]...)
+	cmd.Stderr = os.Stderr
+	// cmd.Stdout = os.Stdout
+
+	if out, err := cmd.Output(); err != nil {
+		fmt.Printf("err occurred: %s\n", err.Error())
+		return nil, err
+	} else {
+		return out, err
+	}
+}
+
 func Kubectl(args ...string) (stdout *bytes.Buffer, err error) {
 	c := exec.Command("kubectl", args...)
 	outStream, errStream := bytes.NewBuffer([]byte{}), bytes.NewBuffer([]byte{})
@@ -36,7 +66,7 @@ func Kubectl(args ...string) (stdout *bytes.Buffer, err error) {
 	if err := c.Run(); err != nil {
 		return outStream, errors.NewEf(err, errStream.String())
 	}
-	fmt.Printf("stdout: %s\n", outStream.Bytes())
+	// fmt.Printf("stdout: %s\n", outStream.Bytes())
 	return outStream, nil
 }
 

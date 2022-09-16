@@ -9,4 +9,5 @@ resources:
 - bases/management.kloudlite.io_regions.yaml
 - bases/infra.kloudlite.io_accountnodes.yaml
 - bases/infra.kloudlite.io_accountproviders.yaml
+- bases/infra.kloudlite.io_nodepools.yaml
 #+kubebuilder:scaffold:crdkustomizeresource

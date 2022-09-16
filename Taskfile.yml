@@ -1,6 +1,6 @@
 version: '3'
 
-dotenv: [".secrets/env"]
+dotenv: [".env"]
 
 
 tasks:
@@ -25,7 +25,11 @@ tasks:
       COMM: false
       INFRA: true
       NAMESERVER_ENDPOINT: http://dns-api.kl-core.svc.cluster.local
-      WG_DOMAIN: dev.kloudlite.io
+      WG_DOMAIN: kloudlite.io
+      SSH_KEY_PATH: /home/nonroot/ssh
+      STORE_PATH: /terraform/storage
+      TF_TEMPLATES_PATH: /templates/terraform
+
       # NAMESERVER_ENDPOINT: http://10.13.13.4:3000
     run: always
     cmds:

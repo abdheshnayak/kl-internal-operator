@@ -84,6 +84,32 @@ rules:
   - patch
   - update
 - apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - nodepools
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - nodepools/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - nodepools/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - management.kloudlite.io
   resources:
   - accounts

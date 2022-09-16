@@ -14,6 +14,7 @@ const (
 const (
 	CommonFinalizer     string = "finalizers.kloudlite.io"
 	ForegroundFinalizer string = "foregroundDeletion"
+	KlFinalizer         string = "klouldite-finalizer"
 )
 
 var (

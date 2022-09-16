@@ -115,4 +115,5 @@ const (
 	WireGuardConfig       templateFile = "./wireguardconf.tmpl.conf"
 	WireGuardDeviceConfig templateFile = "./wireguard-device-conf.tmpl.conf"
 	DNSConfig             templateFile = "./dns-config.tmpl.yml"
+	CreateNode            templateFile = "./nodejob.tmpl.yaml"
 )

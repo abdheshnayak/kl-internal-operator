@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
-  name: domains.management.kloudlite.io
+  name: nodepools.infra.kloudlite.io
 spec:
-  group: management.kloudlite.io
+  group: infra.kloudlite.io
   names:
-    kind: Domain
-    listKind: DomainList
-    plural: domains
-    singular: domain
+    kind: NodePool
+    listKind: NodePoolList
+    plural: nodepools
+    singular: nodepool
   scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: Domain is the Schema for the domains API
+        description: NodePool is the Schema for the nodepools API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,15 +33,9 @@ spec:
           metadata:
             type: object
           spec:
-            description: DomainSpec defines the desired state of Domain
+            description: NodePoolSpec defines the desired state of NodePool
             properties:
-              ips:
-                items:
-                  type: string
-                type: array
-              name:
-                description: Foo is an example field of Domain. Edit domain_types.go
-                  to remove/update
+              foo:
                 type: string
             type: object
           status:

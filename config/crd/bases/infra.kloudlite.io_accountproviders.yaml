@@ -35,6 +35,10 @@ spec:
           spec:
             description: AccountProviderSpec defines the desired state of AccountProvider
             properties:
+              accountId:
+                description: Foo is an example field of AccountProvider. Edit accountprovider_types.go
+                  to remove/update
+                type: string
               credentialsRef:
                 properties:
                   key:
@@ -45,8 +49,6 @@ spec:
                     type: string
                 type: object
               provider:
-                description: Foo is an example field of AccountProvider. Edit accountprovider_types.go
-                  to remove/update
                 type: string
             type: object
           status:
@@ -127,6 +129,8 @@ spec:
                 x-kubernetes-preserve-unknown-fields: true
               isReady:
                 type: boolean
+              message:
+                type: string
               opsConditions:
                 items:
                   description: "Condition contains details for one aspect of the current
