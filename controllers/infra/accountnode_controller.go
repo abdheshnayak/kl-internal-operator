@@ -830,10 +830,11 @@ func (r *AccountNodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				if !ok {
 					return nil
 				}
-				return []reconcile.Request{{NamespacedName: functions.NN("kl-core", l)}}
+
+				return []reconcile.Request{{NamespacedName: types.NamespacedName{
+					Name: l,
+				}}}
 			},
 		)).
 		Complete(r)
 }
-
-// terraform destroy -auto-approve -var=accountId="kl-core" -var=do-image-id="ubuntu-18-04-x64" -var=nodeId="kl-sample-node" -var=cluster-id="kl" -var=keys-path="/home/nonroot/ssh" -var=do-token="dop_v1_c70d104e3383f73a3bf0becf5119a615cb069b927752afd504a7c7f56e87c458"

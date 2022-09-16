@@ -41,6 +41,8 @@ spec:
                 type: string
               config:
                 type: string
+              pool:
+                type: string
               provider:
                 type: string
               providerRef:

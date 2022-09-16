@@ -5,16 +5,22 @@ import (
 	"fmt"
 	"time"
 
+	apiErrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+
 	// "k8s.io/apimachinery/pkg/types"
 	"operators.kloudlite.io/lib/conditions"
+	"operators.kloudlite.io/lib/constants"
+	"operators.kloudlite.io/lib/functions"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	rApi "operators.kloudlite.io/lib/operator"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	// corev1 "k8s.io/api/core/v1"
-	// apiErrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	infrav1 "operators.kloudlite.io/apis/infra/v1"
 )
 
@@ -65,6 +71,11 @@ func (r *AccountProviderReconciler) Reconcile(ctx context.Context, oReq ctrl.Req
 		return x.Result(), x.Err()
 	}
 
+	if !controllerutil.ContainsFinalizer(req.Object, constants.KlFinalizer) {
+		controllerutil.AddFinalizer(req.Object, constants.KlFinalizer)
+		return ctrl.Result{}, r.Update(ctx, req.Object)
+	}
+
 	fmt.Println("reconcileStatus")
 
 	if x := r.reconcileStatus(req); !x.ShouldProceed() {
@@ -81,7 +92,36 @@ func (r *AccountProviderReconciler) Reconcile(ctx context.Context, oReq ctrl.Req
 }
 
 func (r *AccountProviderReconciler) finalize(req *rApi.Request[*infrav1.AccountProvider]) rApi.StepResult {
-	return req.Finalize()
+	// needs to delete pool
+
+	// check is pool present
+	if err, done := func() (error, bool) {
+
+		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
+			Name: fmt.Sprintf("%s-%s", req.Object.Name, req.Object.Spec.Region),
+		}, &infrav1.NodePool{})
+
+		if err != nil {
+			if !apiErrors.IsNotFound(err) {
+				return err, false
+			}
+			return err, true
+		}
+
+		_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool/%s", fmt.Sprintf("%s-%s", req.Object.Name, req.Object.Spec.Region)), "")
+		if err != nil {
+			return err, false
+		}
+
+		return nil, false
+	}(); err != nil {
+		return req.FailWithStatusError(err)
+	} else if done {
+
+		return req.Finalize()
+	}
+
+	return req.Done()
 }
 
 func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.AccountProvider]) rApi.StepResult {
@@ -96,26 +136,26 @@ func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.A
 	isReady := true
 	retry := false
 
-	// template
+	// check is pool created
 	if err := func() error {
-		// _, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-		// 	Name: "wg-" + req.Object.Name,
-		// }, &corev1.Namespace{})
+		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
+			Name: fmt.Sprintf("%s-%s", req.Object.Name, req.Object.Spec.Region),
+		}, &infrav1.NodePool{})
 
-		// if err != nil {
-		// 	if !apiErrors.IsNotFound(err) {
-		// 		return err
-		// 	}
-		// 	isReady = false
-		// 	cs = append(cs,
-		// 		conditions.New(
-		// 			"WGNamespaceNotFound",
-		// 			false,
-		// 			"NotFound",
-		// 			"WG namespace not found",
-		// 		),
-		// 	)
-		// }
+		if err != nil {
+			if !apiErrors.IsNotFound(err) {
+				return err
+			}
+			isReady = false
+			cs = append(cs,
+				conditions.New(
+					"PoolFound",
+					false,
+					"NotFound",
+					"Node pool not created yet",
+				),
+			)
+		}
 
 		return nil
 	}(); err != nil {
@@ -130,6 +170,7 @@ func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.A
 	}
 
 	newConditions, hasUpdated, err := conditions.Patch(req.Object.Status.Conditions, cs)
+
 	if err != nil {
 		return req.FailWithStatusError(err)
 	}
@@ -152,7 +193,27 @@ func (r *AccountProviderReconciler) reconcileOperations(req *rApi.Request[*infra
 
 	// do some task here
 	if err := func() error {
-		return nil
+
+		if !meta.IsStatusConditionFalse(req.Object.Status.Conditions, "PoolFound") {
+			return nil
+		}
+
+		err := r.Client.Create(req.Context(), &infrav1.NodePool{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            fmt.Sprintf("%s-%s", req.Object.Name, req.Object.Spec.Region),
+				OwnerReferences: []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
+			},
+			Spec: infrav1.NodePoolSpec{
+				AccountRef:  req.Object.Spec.AccountId,
+				ProviderRef: req.Object.Name,
+				Provider:    req.Object.Spec.Provider,
+				Config:      `{ "region": "blr1", "size": "s-1vcpu-1gb", "imageId":"ubuntu-18-04-x64" }`,
+				Min:         req.Object.Spec.Min,
+				Max:         req.Object.Spec.Max,
+			},
+		})
+
+		return err
 	}(); err != nil {
 		return req.FailWithOpError(err)
 	}
@@ -164,5 +225,6 @@ func (r *AccountProviderReconciler) reconcileOperations(req *rApi.Request[*infra
 func (r *AccountProviderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.AccountProvider{}).
+		Owns(&infrav1.NodePool{}).
 		Complete(r)
 }

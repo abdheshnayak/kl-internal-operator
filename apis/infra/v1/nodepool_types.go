@@ -13,7 +13,12 @@ type NodePoolSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Foo string `json:"foo,omitempty"`
+	AccountRef  string `json:"accountRef,omitempty"`
+	ProviderRef string `json:"providerRef,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	Config      string `json:"config,omitempty"`
+	Min         int    `json:"min,omitempty"`
+	Max         int    `json:"max,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -27,6 +32,14 @@ type NodePool struct {
 
 	Spec   NodePoolSpec `json:"spec,omitempty"`
 	Status rApi.Status  `json:"status,omitempty"`
+}
+
+func (a *NodePool) GetEnsuredLabels() map[string]string {
+	return map[string]string{}
+}
+
+func (a *NodePool) GetStatus() *rApi.Status {
+	return &a.Status
 }
 
 //+kubebuilder:object:root=true

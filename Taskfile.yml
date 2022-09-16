@@ -33,8 +33,9 @@ tasks:
       # NAMESERVER_ENDPOINT: http://10.13.13.4:3000
     run: always
     cmds:
-      - go build -i -tags dynamic -o ./bin/operator
-      - ./bin/operator
+      - nodemon -e "go" --signal SIGKILL --exec 'go build -i -tags dynamic -o ./bin/operator && ./bin/operator || exit 1'
+      # - go build -i -tags dynamic -o ./bin/operator
+      # - ./bin/operator
 
     sources:
       - ./**/*.go

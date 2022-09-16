@@ -22,7 +22,11 @@ type AccountProviderSpec struct {
 	// Foo is an example field of AccountProvider. Edit accountprovider_types.go to remove/update
 	AccountId      string                     `json:"accountId,omitempty"`
 	Provider       string                     `json:"provider,omitempty"`
+	Region         string                     `json:"region,omitempty"`
+	Min            int                        `json:"min,omitempty"`
+	Max            int                        `json:"max,omitempty"`
 	CredentialsRef AccountProviderCrediential `json:"credentialsRef,omitempty"`
+	Pool           string                     `json:"pool,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -48,7 +48,15 @@ spec:
                   secretName:
                     type: string
                 type: object
+              max:
+                type: integer
+              min:
+                type: integer
+              pool:
+                type: string
               provider:
+                type: string
+              region:
                 type: string
             type: object
           status:

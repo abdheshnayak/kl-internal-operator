@@ -12,30 +12,29 @@ import (
 	"time"
 
 	"github.com/goombaio/namegenerator"
+	apiErrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	apiLabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"operators.kloudlite.io/lib/conditions"
 	"operators.kloudlite.io/lib/errors"
+	"operators.kloudlite.io/lib/functions"
+	"operators.kloudlite.io/lib/templates"
+	"operators.kloudlite.io/lib/wireguard"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	apiErrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
-	managementv1 "operators.kloudlite.io/apis/management/v1"
-	"operators.kloudlite.io/lib/conditions"
-	"operators.kloudlite.io/lib/functions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	rApi "operators.kloudlite.io/lib/operator"
-	"operators.kloudlite.io/lib/templates"
-	"operators.kloudlite.io/lib/wireguard"
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	managementv1 "operators.kloudlite.io/apis/management/v1"
 )
 
 // create namespace
@@ -113,7 +112,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 	isReady := true
 	retry := false
 
-	fmt.Println(req.Object.Name)
+	// fmt.Println(req.Object.Name)
 
 	// checking wg namespace if not present
 	if err := func() error {
@@ -129,7 +128,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 			cs = append(cs,
 				conditions.New(
-					"WGNamespaceNotFound",
+					"WGNamespaceFound",
 					false,
 					"NotFound",
 					"WG namespace not found",
@@ -767,7 +766,7 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 	if err := func() error {
 
 		wgNotReady := func() bool {
-			return meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGNamespaceNotFound") ||
+			return meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGNamespaceFound") ||
 				meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGNodePortNotReady") ||
 				meta.IsStatusConditionFalse(req.Object.Status.Conditions, "WGServiceFound") ||
 				meta.IsStatusConditionFalse(req.Object.Status.Conditions, "DNSServerReady") ||

@@ -35,7 +35,17 @@ spec:
           spec:
             description: NodePoolSpec defines the desired state of NodePool
             properties:
-              foo:
+              accountRef:
+                type: string
+              config:
+                type: string
+              max:
+                type: integer
+              min:
+                type: integer
+              provider:
+                type: string
+              providerRef:
                 type: string
             type: object
           status:

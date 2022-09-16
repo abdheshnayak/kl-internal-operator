@@ -6,18 +6,19 @@ import (
 	"os"
 
 	"operators.kloudlite.io/lib/nameserver"
-	rApi "operators.kloudlite.io/lib/operator"
 
-	corev1 "k8s.io/api/core/v1"
-	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	corev1 "k8s.io/api/core/v1"
+	apiLabels "k8s.io/apimachinery/pkg/labels"
+	rApi "operators.kloudlite.io/lib/operator"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	managementv1 "operators.kloudlite.io/apis/management/v1"
 )
