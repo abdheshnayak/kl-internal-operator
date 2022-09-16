@@ -71,7 +71,7 @@ func (i *Input) Calculate() (int, string, error) {
 
 	// if it will work even we remove one node remove it ( here the better soln. can be added later )
 	if i.Used < (i.TotalCapacity - i.nodeSize + theresold) {
-		return -1, fmt.Sprintf("node count can be reduced by one, reducing to %d", i.CurrentNodeCount+1), nil
+		return -1, fmt.Sprintf("node count can be reduced by one, reducing to %d", i.CurrentNodeCount-1), nil
 	}
 
 	// if no nodes created yet create one
