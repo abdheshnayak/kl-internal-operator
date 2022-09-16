@@ -366,5 +366,16 @@ func (r *NodePoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}}}
 			},
 		)).
+		Watches(&source.Kind{Type: &corev1.Pod{}}, handler.EnqueueRequestsFromMapFunc(
+			func(o client.Object) []reconcile.Request {
+				l, ok := o.GetLabels()["kloudlite.io/node-pool"]
+				if !ok {
+					return nil
+				}
+				return []reconcile.Request{{NamespacedName: types.NamespacedName{
+					Name: l,
+				}}}
+			},
+		)).
 		Complete(r)
 }
