@@ -244,6 +244,34 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 			return fmt.Errorf("can't fetch secret from local")
 		}
 
+		klConfig := doKLConf{
+			Version: "v1",
+			Values: doKLConfValues{
+				ServerUrl:   "not_required_to_delete",
+				SshKeyPath:  os.Getenv("SSH_KEY_PATH"),
+				StorePath:   os.Getenv("STORE_PATH"),
+				TfTemplates: os.Getenv("TF_TEMPLATES_PATH"),
+				JoinToken:   "not_required_to_delete",
+			},
+		}
+
+		// if any of the environment not provided panic
+		if klConfig.Values.SshKeyPath == "" ||
+			klConfig.Values.StorePath == "" ||
+			klConfig.Values.TfTemplates == "" {
+			return fmt.Errorf("no all environments available to delete job")
+
+		}
+
+		var b []byte
+		var base64C string
+
+		kYaml, err := yaml.Marshal(klConfig)
+		if err != nil {
+			return err
+		}
+		base64K := base64.StdEncoding.EncodeToString(kYaml)
+
 		switch req.Object.Spec.Provider {
 		case "do":
 
@@ -252,35 +280,13 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 				return fmt.Errorf("apiToken not provided in provider secret")
 			}
 
-			var doNodeConfig struct {
-				Region  string `json:"region"`
-				Size    string `json:"size"`
-				ImageId string `json:"imageId"`
-			}
+			var doNodeConfig doNode
 
-			if err := json.Unmarshal(
+			if err = json.Unmarshal(
 				[]byte(req.Object.Spec.Config),
 				&doNodeConfig,
 			); err != nil {
 				return err
-			}
-
-			klConfig := doKLConf{
-				Version: "v1",
-				Values: doKLConfValues{
-					ServerUrl:   "not_required_to_delete",
-					SshKeyPath:  os.Getenv("SSH_KEY_PATH"),
-					StorePath:   os.Getenv("STORE_PATH"),
-					TfTemplates: os.Getenv("TF_TEMPLATES_PATH"),
-					JoinToken:   "not_required_to_delete",
-				},
-			}
-
-			// if any of the environment not provided panic
-			if klConfig.Values.SshKeyPath == "" ||
-				klConfig.Values.StorePath == "" ||
-				klConfig.Values.TfTemplates == "" {
-				return fmt.Errorf("no all environments available to delete job")
 			}
 
 			nodeConfig := doConfig{
@@ -296,51 +302,90 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 						Region:  doNodeConfig.Region,
 						Size:    doNodeConfig.Size,
 						ImageId: doNodeConfig.ImageId,
-						NodeId:  req.Object.Name,
-						// NodeId:  req.Object.Name,
+						NodeId:  fmt.Sprintf("kl-byoc-%s", req.Object.Name),
 					},
 				},
 			}
 
-			cYaml, err := yaml.Marshal(nodeConfig)
-			if err != nil {
-				return err
+			cYaml, e := yaml.Marshal(nodeConfig)
+			if e != nil {
+				return e
 			}
-			base64C := base64.StdEncoding.EncodeToString(cYaml)
+			base64C = base64.StdEncoding.EncodeToString(cYaml)
 
-			kYaml, err := yaml.Marshal(klConfig)
-			if err != nil {
-				return err
+		case "aws":
+
+			accessKey, ok := secret.Data["accessKey"]
+			if !ok {
+				return fmt.Errorf("AccessKey not provided in provider secret")
 			}
-			base64K := base64.StdEncoding.EncodeToString(kYaml)
+			accessSecret, ok := secret.Data["accessSecret"]
+			if !ok {
+				return fmt.Errorf("AccessSecret not provided in provider secret")
+			}
 
-			b, err := templates.Parse(templates.CreateNode, map[string]any{
-				"name":       fmt.Sprintf("delete-%s", req.Object.Name),
-				"namespace":  JOB_NS,
-				"labels":     req.Object.GetEnsuredLabels(),
-				"taints":     []string{},
-				"nodeConfig": base64C,
-				"klConfig":   base64K,
-				"provider":   "do",
-				"owner-refs": []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
-			})
+			var awsNodeConfig awsNode
 
-			// fmt.Println(string(b))
-
-			if err != nil {
+			if err = json.Unmarshal(
+				[]byte(req.Object.Spec.Config),
+				&awsNodeConfig,
+			); err != nil {
 				return err
 			}
 
-			_, err = functions.KubectlApplyExec(b)
-
-			if err != nil {
-				fmt.Println(err)
-				return err
+			nodeConfig := awsConfig{
+				Version:  "v1",
+				Action:   "delete",
+				Provider: "aws",
+				Spec: awsSpec{
+					Provider: awsProvider{
+						AccessKey:    string(accessKey),
+						AccessSecret: string(accessSecret),
+						AccountId:    req.Object.Spec.AccountRef,
+					},
+					Node: awsNode{
+						NodeId:       fmt.Sprintf("kl-byoc-%s", req.Object.Name),
+						Region:       awsNodeConfig.Region,
+						InstanceType: awsNodeConfig.InstanceType,
+						VPC:          awsNodeConfig.VPC,
+						AMI:          awsNodeConfig.AMI,
+					},
+				},
 			}
+
+			cYaml, e := yaml.Marshal(nodeConfig)
+			if e != nil {
+				return e
+			}
+			base64C = base64.StdEncoding.EncodeToString(cYaml)
 
 		default:
 			return fmt.Errorf("unknown provider")
+
 		}
+
+		b, err = templates.Parse(templates.CreateNode, map[string]any{
+			"name":       fmt.Sprintf("delete-%s", req.Object.Name),
+			"namespace":  JOB_NS,
+			"labels":     req.Object.GetEnsuredLabels(),
+			"taints":     []string{},
+			"nodeConfig": base64C,
+			"klConfig":   base64K,
+			"provider":   "do",
+			"owner-refs": []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
+		})
+
+		if err != nil {
+			return err
+		}
+
+		// fmt.Println(string(b))
+
+		if _, err = functions.KubectlApplyExec(b); err != nil {
+			fmt.Println(err)
+			return err
+		}
+
 		return nil
 
 	}(); err != nil {
@@ -628,11 +673,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 
 		switch req.Object.Spec.Provider {
 		case "do":
-			var doNodeConfig struct {
-				Region  string `json:"region"`
-				Size    string `json:"size"`
-				ImageId string `json:"imageId"`
-			}
+			var doNodeConfig doNode
 
 			if err := json.Unmarshal(
 				[]byte(req.Object.Spec.Config),
@@ -644,6 +685,34 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			if doNodeConfig.Region == "" ||
 				doNodeConfig.Size == "" ||
 				doNodeConfig.ImageId == "" {
+				isReady = false
+
+				cs = append(cs,
+					conditions.New(
+						"ConfigsAvailable",
+						false,
+						"NotFound",
+						"All configs not provided to create do node",
+					),
+				)
+
+				return nil
+			}
+
+		case "aws":
+
+			var awsNodeConfig awsNode
+
+			if err := json.Unmarshal(
+				[]byte(req.Object.Spec.Config),
+				&awsNodeConfig,
+			); err != nil {
+				return err
+			}
+
+			if awsNodeConfig.Region == "" ||
+				awsNodeConfig.InstanceType == "" ||
+				awsNodeConfig.AMI == "" {
 				isReady = false
 
 				cs = append(cs,
@@ -671,7 +740,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 		return req.FailWithStatusError(err)
 	}
 
-	if !hasUpdated {
+	if !hasUpdated && isReady == req.Object.Status.IsReady {
 		return req.Next()
 	}
 
@@ -714,51 +783,67 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 			return fmt.Errorf("can't fetch secret from local")
 		}
 
+		klConfig := doKLConf{
+			Version: "v1",
+			Values: doKLConfValues{
+				ServerUrl:   serverUrl,
+				SshKeyPath:  os.Getenv("SSH_KEY_PATH"),
+				StorePath:   os.Getenv("STORE_PATH"),
+				TfTemplates: os.Getenv("TF_TEMPLATES_PATH"),
+				JoinToken:   joinToken,
+			},
+		}
+
+		// if any of the environment not provided panic
+		if klConfig.Values.ServerUrl == "" ||
+			klConfig.Values.SshKeyPath == "" ||
+			klConfig.Values.StorePath == "" ||
+			klConfig.Values.TfTemplates == "" ||
+			klConfig.Values.JoinToken == "" {
+			return fmt.Errorf("no all environments available to create job")
+		}
+
+		kYaml, err := yaml.Marshal(klConfig)
+		if err != nil {
+			return err
+		}
+		base64K := base64.StdEncoding.EncodeToString(kYaml)
+
+		taints := func() []string {
+			s := make([]string, 0)
+			// s = append(s, fmt.Sprintf("kloudlite.io/region=%s:NoExecute", doNodeConfig.Region))
+			// s = append(s, fmt.Sprintf("kloudlite.io/account=%s:NoExecute", req.Object.Spec.AccountRef))
+			// s = append(s, fmt.Sprintf("kloudlite.io/provider=%s:NoExecute", req.Object.Spec.Provider))
+
+			s = append(s,
+				fmt.Sprintf("kloudlite.io/acc-provider-ref=%s-%s:NoExecute",
+					req.Object.Spec.AccountRef, req.Object.Spec.ProviderRef),
+			)
+			return s
+		}()
+
+		var base64C string
+
 		switch req.Object.Spec.Provider {
 		case "do":
 
-			apiToken := secret.Data["apiToken"]
-			if string(apiToken) == "" {
+			apiToken, ok := secret.Data["apiToken"]
+			if !ok {
 				return fmt.Errorf("apiToken not provided in provider secret")
 			}
 
-			var doNodeConfig struct {
-				Region  string `json:"region"`
-				Size    string `json:"size"`
-				ImageId string `json:"imageId"`
-			}
-
-			if err := json.Unmarshal(
+			var doNodeConfig doNode
+			if e := json.Unmarshal(
 				[]byte(req.Object.Spec.Config),
 				&doNodeConfig,
-			); err != nil {
-				return err
-			}
-
-			klConfig := doKLConf{
-				Version: "v1",
-				Values: doKLConfValues{
-					ServerUrl:   serverUrl,
-					SshKeyPath:  os.Getenv("SSH_KEY_PATH"),
-					StorePath:   os.Getenv("STORE_PATH"),
-					TfTemplates: os.Getenv("TF_TEMPLATES_PATH"),
-					JoinToken:   joinToken,
-				},
-			}
-
-			// if any of the environment not provided panic
-			if klConfig.Values.ServerUrl == "" ||
-				klConfig.Values.SshKeyPath == "" ||
-				klConfig.Values.StorePath == "" ||
-				klConfig.Values.TfTemplates == "" ||
-				klConfig.Values.JoinToken == "" {
-				return fmt.Errorf("no all environments available to create job")
+			); e != nil {
+				return e
 			}
 
 			nodeConfig := doConfig{
 				Version:  "v1",
 				Action:   "create",
-				Provider: "do",
+				Provider: req.Object.Spec.Provider,
 				Spec: doSpec{
 					Provider: doProvider{
 						ApiToken:  string(apiToken),
@@ -768,59 +853,86 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 						Region:  doNodeConfig.Region,
 						Size:    doNodeConfig.Size,
 						ImageId: doNodeConfig.ImageId,
-						NodeId:  req.Object.Name,
+						NodeId:  fmt.Sprintf("kl-byoc-%s", req.Object.Name),
 					},
 				},
 			}
 
-			cYaml, err := yaml.Marshal(nodeConfig)
-			if err != nil {
-				return err
+			cYaml, e := yaml.Marshal(nodeConfig)
+			if e != nil {
+				return e
 			}
-			base64C := base64.StdEncoding.EncodeToString(cYaml)
+			base64C = base64.StdEncoding.EncodeToString(cYaml)
 
-			kYaml, err := yaml.Marshal(klConfig)
-			if err != nil {
-				return err
+		case "aws":
+
+			accessKey, ok := secret.Data["accessKey"]
+			if !ok {
+				return fmt.Errorf("AccessKey not provided in provider secret")
 			}
-			base64K := base64.StdEncoding.EncodeToString(kYaml)
+			accessSecret, ok := secret.Data["accessSecret"]
+			if !ok {
+				return fmt.Errorf("AccessSecret not provided in provider secret")
+			}
 
-			taints := func() []string {
-				s := make([]string, 0)
-				s = append(s, fmt.Sprintf("kloudlite.io/region=%s:NoExecute", doNodeConfig.Region))
-				s = append(s, fmt.Sprintf("kloudlite.io/account=%s:NoExecute", req.Object.Spec.AccountRef))
-				s = append(s, fmt.Sprintf("kloudlite.io/provider=%s:NoExecute", req.Object.Spec.Provider))
-
-				s = append(s, fmt.Sprintf("kloudlite.io/provider-ref=%s:NoExecute", req.Object.Spec.ProviderRef))
-				return s
-			}()
-
-			b, err := templates.Parse(templates.CreateNode, map[string]any{
-				"name":       req.Object.Name,
-				"namespace":  "kl-core",
-				"labels":     req.Object.GetEnsuredLabels(),
-				"taints":     taints,
-				"nodeConfig": base64C,
-				"klConfig":   base64K,
-				"provider":   "do",
-				"owner-refs": []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
-			})
-
-			// fmt.Println(string(b))
-
-			if err != nil {
+			var awsNodeConfig awsNode
+			if err = json.Unmarshal(
+				[]byte(req.Object.Spec.Config),
+				&awsNodeConfig,
+			); err != nil {
 				return err
 			}
 
-			_, err = functions.KubectlApplyExec(b)
-
-			if err != nil {
-				fmt.Println(err)
-				return err
+			nodeConfig := awsConfig{
+				Version:  "v1",
+				Action:   "create",
+				Provider: req.Object.Spec.Provider,
+				Spec: awsSpec{
+					Provider: awsProvider{
+						AccessKey:    string(accessKey),
+						AccessSecret: string(accessSecret),
+						AccountId:    req.Object.Spec.AccountRef,
+					},
+					Node: awsNode{
+						NodeId:       fmt.Sprintf("kl-byoc-%s", req.Object.Name),
+						Region:       awsNodeConfig.Region,
+						InstanceType: awsNodeConfig.InstanceType,
+						VPC:          awsNodeConfig.VPC,
+						AMI:          awsNodeConfig.AMI,
+					},
+				},
 			}
+
+			cYaml, e := yaml.Marshal(nodeConfig)
+			if e != nil {
+				return e
+			}
+			base64C = base64.StdEncoding.EncodeToString(cYaml)
 
 		default:
 			return fmt.Errorf("unknown provider")
+		}
+
+		b, err := templates.Parse(templates.CreateNode, map[string]any{
+			"name":       req.Object.Name,
+			"namespace":  "kl-core",
+			"labels":     req.Object.GetEnsuredLabels(),
+			"taints":     taints,
+			"nodeConfig": base64C,
+			"klConfig":   base64K,
+			"provider":   req.Object.Spec.Provider,
+			"owner-refs": []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
+		})
+
+		// fmt.Println(string(b))
+
+		if err != nil {
+			return err
+		}
+
+		if _, err = functions.KubectlApplyExec(b); err != nil {
+			fmt.Println(err)
+			return err
 		}
 
 		return nil

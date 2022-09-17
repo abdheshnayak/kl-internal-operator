@@ -280,7 +280,7 @@ func (r *NodePoolReconciler) reconcileStatus(req *rApi.Request[*infrav1.NodePool
 		return req.FailWithStatusError(err)
 	}
 
-	if !hasUpdated {
+	if !hasUpdated && isReady == req.Object.Status.IsReady {
 		return req.Next()
 	}
 

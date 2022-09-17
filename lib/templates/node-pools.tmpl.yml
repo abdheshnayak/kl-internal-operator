@@ -1,0 +1,15 @@
+{{- $pools := get . "pools"}}
+
+{{- range $value := $pools}}
+{{- with $value}}
+
+---
+apiVersion: infra.kloudlite.io/v1
+kind: NodePool
+metadata:
+  labels: {{.Labels | toJson}}
+  name: {{.Name}}
+  ownerReferences: {{.OwnerReferences | toJson}}
+spec: {{.Spec | toJson}}
+{{- end }}
+{{- end }}

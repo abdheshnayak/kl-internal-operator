@@ -40,6 +40,7 @@ spec:
                   to remove/update
                 type: string
               credentialsRef:
+                description: Region         string                     `json:"region,omitempty"`
                 properties:
                   key:
                     type: string
@@ -48,13 +49,20 @@ spec:
                   secretName:
                     type: string
                 type: object
-              max:
-                type: integer
-              min:
-                type: integer
+              pools:
+                items:
+                  properties:
+                    config:
+                      type: string
+                    max:
+                      type: integer
+                    min:
+                      type: integer
+                    name:
+                      type: string
+                  type: object
+                type: array
               provider:
-                type: string
-              region:
                 type: string
             type: object
           status:

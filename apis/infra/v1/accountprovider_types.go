@@ -14,18 +14,24 @@ type AccountProviderCrediential struct {
 	Key        string `json:"key,omitempty"`
 }
 
+type Pool struct {
+	Name   string `json:"name,omitempty"`
+	Config string `json:"config,omitempty"`
+	Min    int    `json:"min,omitempty"`
+	Max    int    `json:"max,omitempty"`
+}
+
 // AccountProviderSpec defines the desired state of AccountProvider
 type AccountProviderSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of AccountProvider. Edit accountprovider_types.go to remove/update
-	AccountId      string                     `json:"accountId,omitempty"`
-	Provider       string                     `json:"provider,omitempty"`
-	Region         string                     `json:"region,omitempty"`
-	Min            int                        `json:"min,omitempty"`
-	Max            int                        `json:"max,omitempty"`
+	AccountId string `json:"accountId,omitempty"`
+	Provider  string `json:"provider,omitempty"`
+	// Region         string                     `json:"region,omitempty"`
 	CredentialsRef AccountProviderCrediential `json:"credentialsRef,omitempty"`
+	Pools          []Pool                     `json:"pools,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -43,7 +49,9 @@ type AccountProvider struct {
 
 func (a *AccountProvider) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"kloudlite.io/provider": a.Spec.Provider,
+		"kloudlite.io/provider":     a.Spec.Provider,
+		"kloudlite.io/account-ref":  a.Spec.AccountId,
+		"kloudlite.io/provider-ref": a.Name,
 	}
 }
 

@@ -35,7 +35,9 @@ type NodePool struct {
 }
 
 func (a *NodePool) GetEnsuredLabels() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		"kloudlite.io/node-pool": a.Name,
+	}
 }
 
 func (a *NodePool) GetStatus() *rApi.Status {

@@ -3,10 +3,10 @@ package infra
 import (
 	"context"
 	"fmt"
-	"time"
 
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -14,6 +14,7 @@ import (
 	"operators.kloudlite.io/lib/conditions"
 	"operators.kloudlite.io/lib/constants"
 	"operators.kloudlite.io/lib/functions"
+	"operators.kloudlite.io/lib/templates"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -108,7 +109,7 @@ func (r *AccountProviderReconciler) finalize(req *rApi.Request[*infrav1.AccountP
 			return err, true
 		}
 
-		_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool/%s", fmt.Sprintf("%s-%s", req.Object.Name, req.Object.Spec.Region)), "")
+		_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool/%s", req.Object.Name), "")
 		if err != nil {
 			return err, false
 		}
@@ -134,13 +135,17 @@ func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.A
 	req.Object.Status.DisplayVars.Reset()
 	var cs []metav1.Condition
 	isReady := true
-	retry := false
+	// retry := false
 
 	// check is pool created
 	if err := func() error {
-		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-			Name: fmt.Sprintf("%s-%s", req.Object.Name, req.Object.Spec.Region),
-		}, &infrav1.NodePool{})
+
+		var nodePools infrav1.NodePoolList
+		err := r.Client.List(req.Context(), &nodePools, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
+				"kloudlite.io/provider-ref": req.Object.Name,
+			}),
+		})
 
 		if err != nil {
 			if !apiErrors.IsNotFound(err) {
@@ -149,12 +154,57 @@ func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.A
 			isReady = false
 			cs = append(cs,
 				conditions.New(
-					"PoolFound",
+					"PoolUpToDate",
 					false,
 					"NotFound",
-					"Node pool not created yet",
+					"Node pools are on old Version",
 				),
 			)
+			return nil
+		} else if len(nodePools.Items) != len(req.Object.Spec.Pools) {
+
+			isReady = false
+			cs = append(cs,
+				conditions.New(
+					"PoolUpToDate",
+					false,
+					"NotFound",
+					"Node pools are on old Version",
+				),
+			)
+			return nil
+		}
+
+		for _, p := range req.Object.Spec.Pools {
+			matched := false
+			for _, np := range nodePools.Items {
+				fmt.Println(p.Name, np.Name)
+				fmt.Println(p.Min, np.Spec.Min)
+				fmt.Println(p.Max, np.Spec.Max)
+				if fmt.Sprintf("%s-%s", req.Object.Name, p.Name) == np.Name &&
+					p.Min == np.Spec.Min &&
+					p.Max == np.Spec.Max {
+					matched = true
+					break
+				}
+			}
+
+			if !matched {
+				fmt.Println("here.................................")
+
+				isReady = false
+				cs = append(cs,
+					conditions.New(
+						"PoolUpToDate",
+						false,
+						"NotFound",
+						"Node pools are on old Version",
+					),
+				)
+				return nil
+
+			}
+
 		}
 
 		return nil
@@ -162,12 +212,12 @@ func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.A
 		return req.FailWithStatusError(err)
 	}
 
-	if retry {
-		if err := r.Status().Update(req.Context(), req.Object); err != nil {
-			return req.FailWithStatusError(err)
-		}
-		return req.Done(&ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5})
-	}
+	// if retry {
+	// 	if err := r.Status().Update(req.Context(), req.Object); err != nil {
+	// 		return req.FailWithStatusError(err)
+	// 	}
+	// 	return req.Done(&ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5})
+	// }
 
 	newConditions, hasUpdated, err := conditions.Patch(req.Object.Status.Conditions, cs)
 
@@ -175,7 +225,7 @@ func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.A
 		return req.FailWithStatusError(err)
 	}
 
-	if !hasUpdated {
+	if !hasUpdated && isReady == req.Object.Status.IsReady {
 		return req.Next()
 	}
 
@@ -194,26 +244,48 @@ func (r *AccountProviderReconciler) reconcileOperations(req *rApi.Request[*infra
 	// do some task here
 	if err := func() error {
 
-		if !meta.IsStatusConditionFalse(req.Object.Status.Conditions, "PoolFound") {
+		if !meta.IsStatusConditionFalse(req.Object.Status.Conditions, "PoolUpToDate") {
 			return nil
 		}
 
-		err := r.Client.Create(req.Context(), &infrav1.NodePool{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            req.Object.Name,
-				OwnerReferences: []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
-			},
-			Spec: infrav1.NodePoolSpec{
-				AccountRef:  req.Object.Spec.AccountId,
-				ProviderRef: req.Object.Name,
-				Provider:    req.Object.Spec.Provider,
-				Config:      `{ "region": "blr1", "size": "s-1vcpu-1gb", "imageId":"ubuntu-18-04-x64" }`,
-				Min:         req.Object.Spec.Min,
-				Max:         req.Object.Spec.Max,
-			},
+		b, err := templates.Parse(templates.NodePools, map[string]any{
+			"pools": func() []infrav1.NodePool {
+				pls := make([]infrav1.NodePool, 0)
+				for _, p := range req.Object.Spec.Pools {
+
+					pls = append(pls, infrav1.NodePool{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            fmt.Sprintf("%s-%s", req.Object.Name, p.Name),
+							OwnerReferences: []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
+							Labels:          req.Object.GetEnsuredLabels(),
+						},
+						Spec: infrav1.NodePoolSpec{
+							AccountRef:  req.Object.Spec.AccountId,
+							ProviderRef: req.Object.Name,
+							Provider:    req.Object.Spec.Provider,
+							Config:      p.Config,
+							Min:         p.Min,
+							Max:         p.Max,
+						},
+					})
+				}
+				return pls
+			}(),
 		})
 
-		return err
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+
+		// fmt.Println(string(b))
+
+		if _, err = functions.KubectlApplyExec(b); err != nil {
+			return err
+		}
+
+		return nil
+
 	}(); err != nil {
 		return req.FailWithOpError(err)
 	}
