@@ -26,7 +26,6 @@ type AccountProviderSpec struct {
 	Min            int                        `json:"min,omitempty"`
 	Max            int                        `json:"max,omitempty"`
 	CredentialsRef AccountProviderCrediential `json:"credentialsRef,omitempty"`
-	Pool           string                     `json:"pool,omitempty"`
 }
 
 //+kubebuilder:object:root=true

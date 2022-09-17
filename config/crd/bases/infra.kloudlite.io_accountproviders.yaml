@@ -52,8 +52,6 @@ spec:
                 type: integer
               min:
                 type: integer
-              pool:
-                type: string
               provider:
                 type: string
               region:

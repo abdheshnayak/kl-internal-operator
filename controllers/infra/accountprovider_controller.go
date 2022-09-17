@@ -98,7 +98,7 @@ func (r *AccountProviderReconciler) finalize(req *rApi.Request[*infrav1.AccountP
 	if err, done := func() (error, bool) {
 
 		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-			Name: fmt.Sprintf("%s-%s", req.Object.Name, req.Object.Spec.Region),
+			Name: req.Object.Name,
 		}, &infrav1.NodePool{})
 
 		if err != nil {
@@ -200,7 +200,7 @@ func (r *AccountProviderReconciler) reconcileOperations(req *rApi.Request[*infra
 
 		err := r.Client.Create(req.Context(), &infrav1.NodePool{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:            fmt.Sprintf("%s-%s", req.Object.Name, req.Object.Spec.Region),
+				Name:            req.Object.Name,
 				OwnerReferences: []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
 			},
 			Spec: infrav1.NodePoolSpec{
