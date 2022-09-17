@@ -5,6 +5,7 @@
 {{- $provider := get . "provider"}}
 {{- $ownerRefs := get . "owner-refs" }}
 {{- $labels := get . "labels" }}
+{{- $taints := get . "taints" }}
 
 apiVersion: batch/v1
 kind: Job
@@ -53,6 +54,8 @@ spec:
           value: {{ $provider }}
         - name: LABELS
           value: {{ $labels | toJson | squote }}
+        - name: TAINTS
+          value: {{ $taints | toJson | squote }}
         - name: S3_DIR
           value: /terraform/storage
 

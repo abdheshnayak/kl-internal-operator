@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -39,6 +40,11 @@ type AccountNodeReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
+
+const (
+	JOB_NS   = "kl-core"
+	TOKEN_NS = "kl-core"
+)
 
 //+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes/status,verbs=get;update;patch
@@ -106,7 +112,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 
 	// ensure creation job deleted
 	if err := func() error {
-		functions.KubectlDelete("kl-core", fmt.Sprintf("job/%s", req.Object.Name))
+		functions.ExecCmd(fmt.Sprintf("kubectl delete -n %s job/%s", JOB_NS, req.Object.Name), "")
 
 		return nil
 	}(); err != nil {
@@ -120,7 +126,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 			r.Client,
 			types.NamespacedName{
 				Name:      fmt.Sprintf("delete-%s", req.Object.Name),
-				Namespace: "kl-core",
+				Namespace: JOB_NS,
 			},
 			&batchv1.Job{},
 		)
@@ -142,7 +148,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 			}
 		}
 
-		out, err := functions.ExecCmd(fmt.Sprintf("kubectl -n kl-core logs job/delete-%s", req.Object.Name), "")
+		out, err := functions.ExecCmd(fmt.Sprintf("kubectl -n %s logs job/delete-%s", JOB_NS, req.Object.Name), "")
 		if err != nil {
 			fmt.Println(err.Error())
 		}
@@ -160,6 +166,8 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 	}(); err != nil {
 		return req.FailWithStatusError(err)
 	} else if done {
+		fmt.Println("waiting 5 seconds before cleaning up")
+		time.Sleep(time.Second * 5)
 		return req.Finalize()
 	}
 
@@ -168,8 +176,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 		provider, err := rApi.Get(req.Context(),
 			r.Client,
 			types.NamespacedName{
-				Name:      req.Object.Spec.ProviderRef,
-				Namespace: "kl-core",
+				Name: req.Object.Spec.ProviderRef,
 			},
 			&infrav1.AccountProvider{},
 		)
@@ -309,8 +316,9 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 
 			b, err := templates.Parse(templates.CreateNode, map[string]any{
 				"name":       fmt.Sprintf("delete-%s", req.Object.Name),
-				"namespace":  "kl-core",
+				"namespace":  JOB_NS,
 				"labels":     req.Object.GetEnsuredLabels(),
+				"taints":     []string{},
 				"nodeConfig": base64C,
 				"klConfig":   base64K,
 				"provider":   "do",
@@ -364,7 +372,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			r.Client,
 			types.NamespacedName{
 				Name:      "join-token",
-				Namespace: "kl-core",
+				Namespace: TOKEN_NS,
 			},
 			&corev1.Secret{},
 		)
@@ -431,8 +439,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 		provider, err := rApi.Get(req.Context(),
 			r.Client,
 			types.NamespacedName{
-				Name:      req.Object.Spec.ProviderRef,
-				Namespace: "kl-core",
+				Name: req.Object.Spec.ProviderRef,
 			},
 			&infrav1.AccountProvider{},
 		)
@@ -561,7 +568,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			r.Client,
 			types.NamespacedName{
 				Name:      req.Object.Name,
-				Namespace: "kl-core",
+				Namespace: JOB_NS,
 			},
 			&batchv1.Job{},
 		)
@@ -592,12 +599,13 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 
 		for _, jc := range job.Status.Conditions {
 			if jc.Type == "Complete" && jc.Status == "True" {
-				return functions.KubectlDelete("kl-core",
-					fmt.Sprintf("job/%s", req.Object.Name))
+				functions.ExecCmd(fmt.Sprintf("kubectl delete -n %s job/%s", JOB_NS, req.Object.Name), "")
+				// functions.KubectlDelete("kl-core",
+				// 	fmt.Sprintf("job/%s", req.Object.Name))
 			}
 		}
 
-		out, err := functions.ExecCmd(fmt.Sprintf("kubectl -n kl-core logs job/%s", req.Object.Name), "")
+		out, err := functions.ExecCmd(fmt.Sprintf("kubectl -n %s logs job/%s", JOB_NS, req.Object.Name), "")
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -777,10 +785,21 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 			}
 			base64K := base64.StdEncoding.EncodeToString(kYaml)
 
+			taints := func() []string {
+				s := make([]string, 0)
+				s = append(s, fmt.Sprintf("kloudlite.io/region=%s:NoExecute", doNodeConfig.Region))
+				s = append(s, fmt.Sprintf("kloudlite.io/account=%s:NoExecute", req.Object.Spec.AccountRef))
+				s = append(s, fmt.Sprintf("kloudlite.io/provider=%s:NoExecute", req.Object.Spec.Provider))
+
+				s = append(s, fmt.Sprintf("kloudlite.io/provider-ref=%s:NoExecute", req.Object.Spec.ProviderRef))
+				return s
+			}()
+
 			b, err := templates.Parse(templates.CreateNode, map[string]any{
 				"name":       req.Object.Name,
 				"namespace":  "kl-core",
 				"labels":     req.Object.GetEnsuredLabels(),
+				"taints":     taints,
 				"nodeConfig": base64C,
 				"klConfig":   base64K,
 				"provider":   "do",
