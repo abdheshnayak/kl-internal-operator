@@ -134,9 +134,9 @@ func main() {
 	}
 
 	func() {
-		if os.Getenv("COMM") != "true" {
-			return
-		}
+		// if os.Getenv("COMM") != "true" {
+		// 	return
+		// }
 
 		if err := (&commoncontroller.AccountReconciler{
 			Client: mgr.GetClient(),

@@ -371,7 +371,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 			"taints":     []string{},
 			"nodeConfig": base64C,
 			"klConfig":   base64K,
-			"provider":   "do",
+			"provider":   req.Object.Spec.Provider,
 			"owner-refs": []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
 		})
 
