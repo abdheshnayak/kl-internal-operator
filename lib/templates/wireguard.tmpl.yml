@@ -116,9 +116,6 @@ spec:
               - key: config.json
                 path: config.json
 
-
-
-
 ---
 
 kind: Service

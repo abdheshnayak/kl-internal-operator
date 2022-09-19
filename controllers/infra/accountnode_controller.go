@@ -814,8 +814,8 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 			// s = append(s, fmt.Sprintf("kloudlite.io/provider=%s:NoExecute", req.Object.Spec.Provider))
 
 			s = append(s,
-				fmt.Sprintf("kloudlite.io/acc-edge-ref=%s-%s:NoExecute",
-					req.Object.Spec.AccountRef, req.Object.Spec.EdgeRef),
+				fmt.Sprintf("kloudlite.io/acc-edge-ref=%s:NoExecute",
+					req.Object.Spec.EdgeRef),
 			)
 			return s
 		}()

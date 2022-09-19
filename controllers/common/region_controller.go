@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"os"
 
+	"operators.kloudlite.io/lib/constants"
 	"operators.kloudlite.io/lib/nameserver"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -34,59 +34,105 @@ type RegionReconciler struct {
 //+kubebuilder:rbac:groups=management.kloudlite.io,resources=regions/finalizers,verbs=update
 
 func (r *RegionReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
-
 	req := rApi.NewRequest(ctx, r.Client, oReq.NamespacedName, &managementv1.Region{})
 
 	if req == nil {
 		return ctrl.Result{}, nil
 	}
 
-	var nodes corev1.NodeList
-
-	err := r.Client.List(ctx, &nodes, &client.ListOptions{
-		LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-			"kloudlite.io/region": req.Object.Name,
-		}),
-	})
-
-	if err != nil {
-		x := rApi.NewStepResult(nil, err)
-		return x.Result(), x.Err()
-	}
-
-	ips := []string{}
-	for _, node := range nodes.Items {
-		annotations := node.GetAnnotations()
-		if annotations == nil || annotations["k3s.io/internal-ip"] == "" {
-			continue
+	if req.Object.GetDeletionTimestamp() != nil {
+		if x := r.finalize(req); !x.ShouldProceed() {
+			return x.Result(), x.Err()
 		}
-		ips = append(ips, annotations["k3s.io/internal-ip"])
 	}
 
-	req.Object.Status.DisplayVars.Set("kloudlite.io/node-ips", ips)
-
-	endpoint := os.Getenv("NAMESERVER_ENDPOINT")
-
-	if endpoint == "" {
-		x := rApi.NewStepResult(nil, fmt.Errorf("NAMESERVER_ENDPOINT not found in environment"))
+	if x := req.EnsureFinilizer(constants.CommonFinalizer); !x.ShouldProceed() {
+		// fmt.Println("EnsureFinilizer", x.Err())
 		return x.Result(), x.Err()
 	}
 
-	dns := nameserver.NewClient(endpoint)
-	err = dns.UpsertNodeIps(req.Object.Name, ips)
+	req.Logger.Info("-------------------- NEW RECONCILATION------------------")
 
-	if err != nil {
-		x := rApi.NewStepResult(nil, err)
+	if x := req.EnsureLabels(); !x.ShouldProceed() {
+		fmt.Println(x.Err())
 		return x.Result(), x.Err()
 	}
 
-	if err := r.Status().Update(req.Context(), req.Object); err != nil {
-		x := rApi.NewStepResult(nil, err)
+	if x := r.reconcileStatus(req); !x.ShouldProceed() {
+		return x.Result(), x.Err()
+	}
+
+	if x := r.reconcileOperations(req); !x.ShouldProceed() {
 		return x.Result(), x.Err()
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *RegionReconciler) finalize(req *rApi.Request[*managementv1.Region]) rApi.StepResult {
+	return req.Done()
+
+}
+
+func (r *RegionReconciler) reconcileStatus(req *rApi.Request[*managementv1.Region]) rApi.StepResult {
+
+	isReady := true
+	// check is fetch all nodes of current node
+	if err := func() error {
+		var nodes corev1.NodeList
+		err := r.Client.List(req.Context(), &nodes, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
+				"kloudlite.io/region": req.Object.Name,
+			}),
+		})
+
+		if err != nil {
+			return err
+		}
+
+		ips := []string{}
+		for _, node := range nodes.Items {
+			annotations := node.GetAnnotations()
+			if annotations == nil || annotations["k3s.io/internal-ip"] == "" {
+				continue
+			}
+			ips = append(ips, annotations["k3s.io/internal-ip"])
+		}
+
+		req.Object.Status.DisplayVars.Set("kloudlite.io/node-ips", ips)
+
+		endpoint := os.Getenv("NAMESERVER_ENDPOINT")
+
+		if endpoint == "" {
+			return fmt.Errorf("NAMESERVER_ENDPOINT not found in environment")
+		}
+
+		dns := nameserver.NewClient(endpoint)
+
+		if err = dns.UpsertNodeIps(req.Object.Name, ips); err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		return req.FailWithStatusError(err)
+	}
+
+	if req.Object.Status.IsReady != isReady {
+
+		req.Object.Status.IsReady = isReady
+
+		if err := r.Status().Update(req.Context(), req.Object); err != nil {
+			return req.FailWithStatusError(err)
+		}
+
+	}
+
+	return req.Done()
+}
+
+func (r *RegionReconciler) reconcileOperations(req *rApi.Request[*managementv1.Region]) rApi.StepResult {
+	return req.Done()
 }
 
 // SetupWithManager sets up the controller with the Manager.

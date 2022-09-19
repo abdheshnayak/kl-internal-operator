@@ -1,0 +1,13 @@
+{{- $name := get . "name"}}
+{{- $account := get . "account"}}
+{{- $provider := get . "provider"}}
+
+apiVersion: management.kloudlite.io/v1
+kind: Region
+metadata:
+  labels:
+    kloudlite.io/cloud.provider: {{$provider}}
+  name: {{$name}} 
+spec:
+  name: {{$name}}
+  account: {{$account}}

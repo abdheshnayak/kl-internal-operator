@@ -39,7 +39,7 @@ func (a *AccountNode) GetEnsuredLabels() map[string]string {
 	return map[string]string{
 		"kloudlite.io/account-node.name": a.Name,
 		"kloudlite.io/account-ref":       a.Spec.AccountRef,
-		"kloudlite.io/edge-ref":          a.Spec.AccountRef,
+		"kloudlite.io/region":            a.Spec.EdgeRef,
 		"kloudlite.io/node-pool":         a.Spec.Pool,
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	managementv1 "operators.kloudlite.io/apis/management/v1"
 	rApi "operators.kloudlite.io/lib/operator"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -93,7 +94,32 @@ func (r *EdgeReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl
 }
 
 func (r *EdgeReconciler) finalize(req *rApi.Request[*infrav1.Edge]) rApi.StepResult {
-	// needs to delete pool
+	// check and delete region
+	if err, done := func() (error, bool) {
+
+		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
+			Name: req.Object.Name,
+		}, &managementv1.Region{})
+
+		if err != nil {
+			if !apiErrors.IsNotFound(err) {
+				return err, false
+			}
+			return err, true
+		}
+
+		if _, err = functions.ExecCmd(
+			fmt.Sprintf("kubectl delete region/%s", req.Object.Name),
+			""); err != nil {
+			return err, false
+		}
+
+		return nil, false
+	}(); err != nil {
+		return req.FailWithStatusError(err)
+	} else if done {
+		return req.Finalize()
+	}
 
 	// check is pool present
 	if err, done := func() (error, bool) {
@@ -135,6 +161,48 @@ func (r *EdgeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Edge]) rApi.
 	var cs []metav1.Condition
 	isReady := true
 	// retry := false
+
+	// check if region created
+	if err := func() error {
+
+		r, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
+			Name: req.Object.Name,
+		}, &managementv1.Region{})
+
+		if err != nil {
+			if !apiErrors.IsNotFound(err) {
+				return err
+			}
+			isReady = false
+
+			cs = append(cs,
+				conditions.New(
+					"RegionFound",
+					false,
+					"NotFound",
+					"Region Not created yet",
+				),
+			)
+			return nil
+		}
+
+		if r.Spec.Account != req.Object.Spec.AccountId {
+			isReady = false
+			cs = append(cs,
+				conditions.New(
+					"RegionFound",
+					false,
+					"NotFound",
+					"Region Not created yet",
+				),
+			)
+			return nil
+		}
+
+		return nil
+	}(); err != nil {
+		return req.FailWithStatusError(err)
+	}
 
 	// check is pool created
 	if err := func() error {
@@ -189,7 +257,6 @@ func (r *EdgeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Edge]) rApi.
 			}
 
 			if !matched {
-				fmt.Println("here.................................")
 
 				isReady = false
 				cs = append(cs,
@@ -239,6 +306,27 @@ func (r *EdgeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Edge]) rApi.
 }
 
 func (r *EdgeReconciler) reconcileOperations(req *rApi.Request[*infrav1.Edge]) rApi.StepResult {
+	// if region not created create
+	if err := func() error {
+
+		if !meta.IsStatusConditionFalse(req.Object.Status.Conditions, "RegionFound") {
+			return nil
+		}
+
+		if b, err := templates.Parse(templates.Region, map[string]any{
+			"name":     req.Object.Name,
+			"account":  req.Object.Spec.AccountId,
+			"provider": req.Object.Spec.Provider,
+		}); err != nil {
+			return err
+		} else if _, err = functions.KubectlApplyExec(b); err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		return req.FailWithOpError(err)
+	}
 
 	// do some task here
 	if err := func() error {
@@ -274,7 +362,6 @@ func (r *EdgeReconciler) reconcileOperations(req *rApi.Request[*infrav1.Edge]) r
 		})
 
 		if err != nil {
-			fmt.Println(err)
 			return err
 		}
 

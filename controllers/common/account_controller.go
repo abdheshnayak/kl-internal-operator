@@ -512,10 +512,26 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 	if err := func() error {
 
 		var regions managementv1.RegionList
-		err := r.List(req.Context(), &regions)
+		var klRegions managementv1.RegionList
+		err := r.List(req.Context(), &regions, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
+				"kloudlite.io/account-ref": req.Object.Name,
+			}),
+		})
+
+		err2 := r.List(req.Context(), &klRegions, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
+				"kloudlite.io/account-ref": "",
+			}),
+		})
+
+		regions.Items = append(regions.Items, klRegions.Items...)
 
 		if err != nil || len(regions.Items) == 0 {
 			if !apiErrors.IsNotFound(err) {
+				return err
+			}
+			if !apiErrors.IsNotFound(err2) {
 				return err
 			}
 
@@ -532,13 +548,13 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		}
 
 		// filtring the regions with is related to current account
-		r2 := []managementv1.Region{}
-		for _, region := range regions.Items {
-			if region.Spec.Account == "" || region.Spec.Account == req.Object.Name {
-				r2 = append(r2, region)
-			}
-		}
-		regions.Items = r2
+		// r2 := []managementv1.Region{}
+		// for _, region := range regions.Items {
+		// 	if region.Spec.Account == "" || region.Spec.Account == req.Object.Name {
+		// 		r2 = append(r2, region)
+		// 	}
+		// }
+		// regions.Items = r2
 
 		rApi.SetLocal(req, "regions", regions)
 		return nil
@@ -554,7 +570,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 		regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
 		if !ok {
-			return fmt.Errorf("CAN'T FETCH REGIONS")
+			return fmt.Errorf("can't fetch regions")
 		}
 
 		var deployments appsv1.DeploymentList
@@ -678,7 +694,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		return req.FailWithStatusError(err)
 	}
 
-	if !hasUpdated {
+	if !hasUpdated && isReady == req.Object.Status.IsReady {
 		return req.Next()
 	}
 
@@ -697,7 +713,11 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 	if err := func() error {
 
 		var regions managementv1.RegionList
-		err := r.List(req.Context(), &regions)
+		err := r.List(req.Context(), &regions, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
+				"kloudlite.io/account-ref": req.Object.Name,
+			}),
+		})
 		if err != nil {
 			return err
 		}
@@ -776,13 +796,31 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 		// creating wireguard deployment service and namespace
 		if wgNotReady {
 			var regions managementv1.RegionList
+			var klregions managementv1.RegionList
 
-			err := r.Client.List(req.Context(), &regions)
-			if err != nil {
+			if err := r.Client.List(req.Context(), &regions, &client.ListOptions{
+				LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
+					"kloudlite.io/account-ref": req.Object.Name,
+				}),
+			}); err != nil {
 				return err
 			}
 
+			if err := r.Client.List(req.Context(), &klregions, &client.ListOptions{
+				LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
+					"kloudlite.io/account-ref": "",
+				}),
+			}); err != nil {
+				return err
+			}
+
+			regions.Items = append(regions.Items, klregions.Items...)
+
 			for _, region := range regions.Items {
+
+				if region.Spec.Account != "" && region.Spec.Account != req.Object.Name {
+					continue
+				}
 
 				// fmt.Println(".................................")
 				corednsConfigExists := true
