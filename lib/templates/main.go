@@ -118,4 +118,6 @@ const (
 	CreateNode            templateFile = "./nodejob.tmpl.yaml"
 	NodePools             templateFile = "./node-pools.tmpl.yml"
 	Region                templateFile = "./region.tmpl.yml"
+	AccountNamespace      templateFile = "./account/namespace.tmpl.yml"
+	CoreDNS               templateFile = "./account/coredns.tmpl.yml"
 )

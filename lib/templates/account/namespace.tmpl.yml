@@ -1,0 +1,15 @@
+{{- $ownerRefs := get . "owner-refs"}}
+{{- with $obj }}
+
+# Wireguard Namespace of an account
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "wg-{{.Name}}"
+  labels:
+    name: "wg-{{.Name}}"
+    kloudlite.io/account-ref: "{{.Name}}"
+  ownerReferences:
+    - {{ $ownerRefs | toJson }}
+
+{{- end }}

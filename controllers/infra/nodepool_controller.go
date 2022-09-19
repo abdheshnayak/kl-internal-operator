@@ -315,7 +315,7 @@ func (r *NodePoolReconciler) reconcileOperations(req *rApi.Request[*infrav1.Node
 				EdgeRef:    req.Object.Spec.EdgeRef,
 				Provider:   req.Object.Spec.Provider,
 				Config:     req.Object.Spec.Config,
-				Region: req.Object.Spec.Region,
+				Region:     req.Object.Spec.Region,
 				Pool:       req.Object.Name,
 			},
 		}); err != nil {

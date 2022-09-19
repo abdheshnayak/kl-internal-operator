@@ -137,7 +137,6 @@ func main() {
 		if os.Getenv("COMM") != "true" {
 			return
 		}
-		// return
 
 		if err := (&commoncontroller.AccountReconciler{
 			Client: mgr.GetClient(),
@@ -176,7 +175,6 @@ func main() {
 		if os.Getenv("INFRA") != "true" {
 			return
 		}
-		return
 
 		if err := (&infracontrollers.NodePoolReconciler{
 			Client: mgr.GetClient(),

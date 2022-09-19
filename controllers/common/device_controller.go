@@ -544,7 +544,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 			return err
 		}
 
-		wgPublicKey, ok := account.Status.DisplayVars.Get("WGPublicKey")
+		wgPublicKey, ok := account.Status.DisplayVars.Get("wg-public-key")
 
 		if !ok {
 			return fmt.Errorf("wg public key not available")
