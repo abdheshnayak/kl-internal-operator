@@ -25,29 +25,29 @@ import (
 	infrav1 "operators.kloudlite.io/apis/infra/v1"
 )
 
-// AccountProviderReconciler reconciles a AccountProvider object
-type AccountProviderReconciler struct {
+// EdgeReconciler reconciles a Edge object
+type EdgeReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountproviders,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountproviders/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountproviders/finalizers,verbs=update
+//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=edges,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=edges/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=edges/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the AccountProvider object against the actual cluster state, and then
+// the Edge object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 
-func (r *AccountProviderReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
+func (r *EdgeReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
 
-	req := rApi.NewRequest(ctx, r.Client, oReq.NamespacedName, &infrav1.AccountProvider{})
+	req := rApi.NewRequest(ctx, r.Client, oReq.NamespacedName, &infrav1.Edge{})
 
 	if req == nil {
 		return ctrl.Result{}, nil
@@ -92,7 +92,7 @@ func (r *AccountProviderReconciler) Reconcile(ctx context.Context, oReq ctrl.Req
 
 }
 
-func (r *AccountProviderReconciler) finalize(req *rApi.Request[*infrav1.AccountProvider]) rApi.StepResult {
+func (r *EdgeReconciler) finalize(req *rApi.Request[*infrav1.Edge]) rApi.StepResult {
 	// needs to delete pool
 
 	// check is pool present
@@ -109,7 +109,7 @@ func (r *AccountProviderReconciler) finalize(req *rApi.Request[*infrav1.AccountP
 			return err, true
 		}
 
-		_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool/%s", req.Object.Name), "")
+		_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool -l kloudlite.io/edge-ref", req.Object.Name), "")
 		if err != nil {
 			return err, false
 		}
@@ -118,14 +118,13 @@ func (r *AccountProviderReconciler) finalize(req *rApi.Request[*infrav1.AccountP
 	}(); err != nil {
 		return req.FailWithStatusError(err)
 	} else if done {
-
 		return req.Finalize()
 	}
 
 	return req.Done()
 }
 
-func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.AccountProvider]) rApi.StepResult {
+func (r *EdgeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Edge]) rApi.StepResult {
 
 	// actions
 	// if possible check if credentials valid
@@ -143,7 +142,7 @@ func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.A
 		var nodePools infrav1.NodePoolList
 		err := r.Client.List(req.Context(), &nodePools, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-				"kloudlite.io/provider-ref": req.Object.Name,
+				"kloudlite.io/edge-ref": req.Object.Name,
 			}),
 		})
 
@@ -239,7 +238,7 @@ func (r *AccountProviderReconciler) reconcileStatus(req *rApi.Request[*infrav1.A
 
 }
 
-func (r *AccountProviderReconciler) reconcileOperations(req *rApi.Request[*infrav1.AccountProvider]) rApi.StepResult {
+func (r *EdgeReconciler) reconcileOperations(req *rApi.Request[*infrav1.Edge]) rApi.StepResult {
 
 	// do some task here
 	if err := func() error {
@@ -260,12 +259,13 @@ func (r *AccountProviderReconciler) reconcileOperations(req *rApi.Request[*infra
 							Labels:          req.Object.GetEnsuredLabels(),
 						},
 						Spec: infrav1.NodePoolSpec{
-							AccountRef:  req.Object.Spec.AccountId,
-							ProviderRef: req.Object.Name,
-							Provider:    req.Object.Spec.Provider,
-							Config:      p.Config,
-							Min:         p.Min,
-							Max:         p.Max,
+							AccountRef: req.Object.Spec.AccountId,
+							EdgeRef:    req.Object.Name,
+							Provider:   req.Object.Spec.Provider,
+							Region:     req.Object.Spec.Region,
+							Config:     p.Config,
+							Min:        p.Min,
+							Max:        p.Max,
 						},
 					})
 				}
@@ -294,9 +294,9 @@ func (r *AccountProviderReconciler) reconcileOperations(req *rApi.Request[*infra
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AccountProviderReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *EdgeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.AccountProvider{}).
+		For(&infrav1.Edge{}).
 		Owns(&infrav1.NodePool{}).
 		Complete(r)
 }

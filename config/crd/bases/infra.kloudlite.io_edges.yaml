@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
-  name: nodepools.infra.kloudlite.io
+  name: edges.infra.kloudlite.io
 spec:
   group: infra.kloudlite.io
   names:
-    kind: NodePool
-    listKind: NodePoolList
-    plural: nodepools
-    singular: nodepool
+    kind: Edge
+    listKind: EdgeList
+    plural: edges
+    singular: edge
   scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: NodePool is the Schema for the nodepools API
+        description: Edge is the Schema for the accountproviders API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,18 +33,34 @@ spec:
           metadata:
             type: object
           spec:
-            description: NodePoolSpec defines the desired state of NodePool
+            description: EdgeSpec defines the desired state of Edge
             properties:
-              accountRef:
+              accountId:
+                description: Foo is an example field of Edge. Edit accountprovider_types.go
+                  to remove/update
                 type: string
-              config:
-                type: string
-              edgeRef:
-                type: string
-              max:
-                type: integer
-              min:
-                type: integer
+              credentialsRef:
+                properties:
+                  key:
+                    type: string
+                  namespace:
+                    type: string
+                  secretName:
+                    type: string
+                type: object
+              pools:
+                items:
+                  properties:
+                    config:
+                      type: string
+                    max:
+                      type: integer
+                    min:
+                      type: integer
+                    name:
+                      type: string
+                  type: object
+                type: array
               provider:
                 type: string
               region:

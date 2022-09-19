@@ -13,12 +13,13 @@ type NodePoolSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	AccountRef  string `json:"accountRef,omitempty"`
-	ProviderRef string `json:"providerRef,omitempty"`
-	Provider    string `json:"provider,omitempty"`
-	Config      string `json:"config,omitempty"`
-	Min         int    `json:"min,omitempty"`
-	Max         int    `json:"max,omitempty"`
+	AccountRef string `json:"accountRef,omitempty"`
+	EdgeRef    string `json:"edgeRef,omitempty"`
+	Provider   string `json:"provider,omitempty"`
+	Region     string `json:"region,omitempty"`
+	Config     string `json:"config,omitempty"`
+	Min        int    `json:"min,omitempty"`
+	Max        int    `json:"max,omitempty"`
 }
 
 //+kubebuilder:object:root=true

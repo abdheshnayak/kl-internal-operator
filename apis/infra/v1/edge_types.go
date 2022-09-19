@@ -21,15 +21,15 @@ type Pool struct {
 	Max    int    `json:"max,omitempty"`
 }
 
-// AccountProviderSpec defines the desired state of AccountProvider
-type AccountProviderSpec struct {
+// EdgeSpec defines the desired state of Edge
+type EdgeSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of AccountProvider. Edit accountprovider_types.go to remove/update
-	AccountId string `json:"accountId,omitempty"`
-	Provider  string `json:"provider,omitempty"`
-	// Region         string                     `json:"region,omitempty"`
+	// Foo is an example field of Edge. Edit accountprovider_types.go to remove/update
+	AccountId      string                     `json:"accountId,omitempty"`
+	Provider       string                     `json:"provider,omitempty"`
+	Region         string                     `json:"region,omitempty"`
 	CredentialsRef AccountProviderCrediential `json:"credentialsRef,omitempty"`
 	Pools          []Pool                     `json:"pools,omitempty"`
 }
@@ -38,36 +38,36 @@ type AccountProviderSpec struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
 
-// AccountProvider is the Schema for the accountproviders API
-type AccountProvider struct {
+// Edge is the Schema for the accountproviders API
+type Edge struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AccountProviderSpec `json:"spec,omitempty"`
-	Status rApi.Status         `json:"status,omitempty"`
+	Spec   EdgeSpec    `json:"spec,omitempty"`
+	Status rApi.Status `json:"status,omitempty"`
 }
 
-func (a *AccountProvider) GetEnsuredLabels() map[string]string {
+func (a *Edge) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"kloudlite.io/provider":     a.Spec.Provider,
-		"kloudlite.io/account-ref":  a.Spec.AccountId,
-		"kloudlite.io/provider-ref": a.Name,
+		"kloudlite.io/provider":    a.Spec.Provider,
+		"kloudlite.io/account-ref": a.Spec.AccountId,
+		"kloudlite.io/edge-ref":    a.Name,
 	}
 }
 
-func (a *AccountProvider) GetStatus() *rApi.Status {
+func (a *Edge) GetStatus() *rApi.Status {
 	return &a.Status
 }
 
 //+kubebuilder:object:root=true
 
-// AccountProviderList contains a list of AccountProvider
-type AccountProviderList struct {
+// EdgeList contains a list of Edge
+type EdgeList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AccountProvider `json:"items"`
+	Items           []Edge `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AccountProvider{}, &AccountProviderList{})
+	SchemeBuilder.Register(&Edge{}, &EdgeList{})
 }

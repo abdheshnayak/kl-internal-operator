@@ -60,7 +60,7 @@ rules:
 - apiGroups:
   - infra.kloudlite.io
   resources:
-  - accountproviders
+  - edges
   verbs:
   - create
   - delete
@@ -72,13 +72,13 @@ rules:
 - apiGroups:
   - infra.kloudlite.io
   resources:
-  - accountproviders/finalizers
+  - edges/finalizers
   verbs:
   - update
 - apiGroups:
   - infra.kloudlite.io
   resources:
-  - accountproviders/status
+  - edges/status
   verbs:
   - get
   - patch

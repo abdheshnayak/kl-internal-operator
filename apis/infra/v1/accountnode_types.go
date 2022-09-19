@@ -15,11 +15,11 @@ type AccountNodeSpec struct {
 
 	// Foo is an example field of AccountNode. Edit accountnode_types.go to remove/update
 	AccountRef string `json:"accountRef,omitempty"`
-	// Region      string `json:"region,omitempty"`
-	ProviderRef string `json:"providerRef,omitempty"`
-	Provider    string `json:"provider,omitempty"`
-	Config      string `json:"config,omitempty"`
-	Pool        string `json:"pool,omitempty"`
+	Region     string `json:"region,omitempty"`
+	EdgeRef    string `json:"providerRef,omitempty"`
+	Provider   string `json:"provider,omitempty"`
+	Config     string `json:"config,omitempty"`
+	Pool       string `json:"pool,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -39,7 +39,7 @@ func (a *AccountNode) GetEnsuredLabels() map[string]string {
 	return map[string]string{
 		"kloudlite.io/account-node.name": a.Name,
 		"kloudlite.io/account-ref":       a.Spec.AccountRef,
-		"kloudlite.io/provider-ref":      a.Spec.AccountRef,
+		"kloudlite.io/edge-ref":          a.Spec.AccountRef,
 		"kloudlite.io/node-pool":         a.Spec.Pool,
 	}
 }

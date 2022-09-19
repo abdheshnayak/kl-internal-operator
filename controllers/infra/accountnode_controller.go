@@ -176,9 +176,9 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 		provider, err := rApi.Get(req.Context(),
 			r.Client,
 			types.NamespacedName{
-				Name: req.Object.Spec.ProviderRef,
+				Name: req.Object.Spec.EdgeRef,
 			},
-			&infrav1.AccountProvider{},
+			&infrav1.Edge{},
 		)
 
 		if err != nil {
@@ -201,7 +201,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 			return nil
 		}
 
-		provider, ok := rApi.GetLocal[*infrav1.AccountProvider](req, "provider")
+		provider, ok := rApi.GetLocal[*infrav1.Edge](req, "provider")
 		if !ok {
 			fmt.Println("error fetching provider")
 			return nil
@@ -299,7 +299,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 						AccountId: req.Object.Spec.AccountRef,
 					},
 					Node: doNode{
-						Region:  doNodeConfig.Region,
+						Region:  req.Object.Spec.Region,
 						Size:    doNodeConfig.Size,
 						ImageId: doNodeConfig.ImageId,
 						NodeId:  fmt.Sprintf("kl-byoc-%s", req.Object.Name),
@@ -345,7 +345,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 					},
 					Node: awsNode{
 						NodeId:       fmt.Sprintf("kl-byoc-%s", req.Object.Name),
-						Region:       awsNodeConfig.Region,
+						Region:       req.Object.Spec.Region,
 						InstanceType: awsNodeConfig.InstanceType,
 						VPC:          awsNodeConfig.VPC,
 						AMI:          awsNodeConfig.AMI,
@@ -484,9 +484,9 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 		provider, err := rApi.Get(req.Context(),
 			r.Client,
 			types.NamespacedName{
-				Name: req.Object.Spec.ProviderRef,
+				Name: req.Object.Spec.EdgeRef,
 			},
-			&infrav1.AccountProvider{},
+			&infrav1.Edge{},
 		)
 
 		if err != nil {
@@ -521,7 +521,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			return nil
 		}
 
-		provider, ok := rApi.GetLocal[*infrav1.AccountProvider](req, "provider")
+		provider, ok := rApi.GetLocal[*infrav1.Edge](req, "provider")
 		if !ok {
 			fmt.Println("error fetching provider")
 			return nil
@@ -682,8 +682,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 				return err
 			}
 
-			if doNodeConfig.Region == "" ||
-				doNodeConfig.Size == "" ||
+			if doNodeConfig.Size == "" ||
 				doNodeConfig.ImageId == "" {
 				isReady = false
 
@@ -710,8 +709,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 				return err
 			}
 
-			if awsNodeConfig.Region == "" ||
-				awsNodeConfig.InstanceType == "" ||
+			if awsNodeConfig.InstanceType == "" ||
 				awsNodeConfig.AMI == "" {
 				isReady = false
 
@@ -816,8 +814,8 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 			// s = append(s, fmt.Sprintf("kloudlite.io/provider=%s:NoExecute", req.Object.Spec.Provider))
 
 			s = append(s,
-				fmt.Sprintf("kloudlite.io/acc-provider-ref=%s-%s:NoExecute",
-					req.Object.Spec.AccountRef, req.Object.Spec.ProviderRef),
+				fmt.Sprintf("kloudlite.io/acc-edge-ref=%s-%s:NoExecute",
+					req.Object.Spec.AccountRef, req.Object.Spec.EdgeRef),
 			)
 			return s
 		}()
@@ -850,7 +848,7 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 						AccountId: req.Object.Spec.AccountRef,
 					},
 					Node: doNode{
-						Region:  doNodeConfig.Region,
+						Region:  req.Object.Spec.Region,
 						Size:    doNodeConfig.Size,
 						ImageId: doNodeConfig.ImageId,
 						NodeId:  fmt.Sprintf("kl-byoc-%s", req.Object.Name),
@@ -895,7 +893,7 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 					},
 					Node: awsNode{
 						NodeId:       fmt.Sprintf("kl-byoc-%s", req.Object.Name),
-						Region:       awsNodeConfig.Region,
+						Region:       req.Object.Spec.Region,
 						InstanceType: awsNodeConfig.InstanceType,
 						VPC:          awsNodeConfig.VPC,
 						AMI:          awsNodeConfig.AMI,

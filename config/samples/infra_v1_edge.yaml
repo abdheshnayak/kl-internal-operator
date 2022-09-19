@@ -1,5 +1,5 @@
 apiVersion: infra.kloudlite.io/v1
-kind: AccountProvider
+kind: Edge
 metadata:
   name: kl
 spec:

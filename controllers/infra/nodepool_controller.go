@@ -311,11 +311,12 @@ func (r *NodePoolReconciler) reconcileOperations(req *rApi.Request[*infrav1.Node
 				},
 			},
 			Spec: infrav1.AccountNodeSpec{
-				AccountRef:  req.Object.Spec.AccountRef,
-				ProviderRef: req.Object.Spec.ProviderRef,
-				Provider:    req.Object.Spec.Provider,
-				Config:      req.Object.Spec.Config,
-				Pool:        req.Object.Name,
+				AccountRef: req.Object.Spec.AccountRef,
+				EdgeRef:    req.Object.Spec.EdgeRef,
+				Provider:   req.Object.Spec.Provider,
+				Config:     req.Object.Spec.Config,
+				Region:     req.Object.Spec.Region,
+				Pool:       req.Object.Name,
 			},
 		}); err != nil {
 			return err

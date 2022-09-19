@@ -46,7 +46,8 @@ spec:
               provider:
                 type: string
               providerRef:
-                description: Region      string `json:"region,omitempty"`
+                type: string
+              region:
                 type: string
             type: object
           status:

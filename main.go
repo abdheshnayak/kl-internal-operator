@@ -134,9 +134,9 @@ func main() {
 	}
 
 	func() {
-		// if os.Getenv("COMM") != "true" {
-		// 	return
-		// }
+		if os.Getenv("COMM") != "true" {
+			return
+		}
 
 		if err := (&commoncontroller.AccountReconciler{
 			Client: mgr.GetClient(),
@@ -191,7 +191,7 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "AccountNode")
 			os.Exit(1)
 		}
-		if err := (&infracontrollers.AccountProviderReconciler{
+		if err := (&infracontrollers.EdgeReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
@@ -220,5 +220,4 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		panic(err)
 	}
-
 }
