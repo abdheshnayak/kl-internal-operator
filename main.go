@@ -7,6 +7,7 @@ import (
 
 	// "google.golang.org/genproto/googleapis/cloud/bigquery/dataexchange/common"
 	"k8s.io/client-go/rest"
+	"operators.kloudlite.io/lib/logging"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -137,7 +138,7 @@ func main() {
 		if os.Getenv("COMM") != "true" {
 			return
 		}
-		// return
+		return
 
 		if err := (&commoncontroller.AccountReconciler{
 			Client: mgr.GetClient(),
@@ -173,15 +174,17 @@ func main() {
 	}()
 
 	func() {
-		if os.Getenv("INFRA") != "true" {
-			return
-		}
-		return
+		// if os.Getenv("INFRA") != "true" {
+		// 	return
+		// }
+		// return
+
+		logger := logging.NewOrDie(&logging.Options{Dev: isDev})
 
 		if err := (&infracontrollers.NodePoolReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr); err != nil {
+		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NodePool")
 			os.Exit(1)
 		}

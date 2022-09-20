@@ -21,13 +21,13 @@ import (
 // +kubebuilder:object:generate=true
 
 type Status struct {
-	IsReady          bool                `json:"isReady"`
-	DisplayVars      rawJson.KubeRawJson `json:"displayVars,omitempty"`
-	GeneratedVars    rawJson.KubeRawJson `json:"generatedVars,omitempty"`
-	Conditions       []metav1.Condition  `json:"conditions,omitempty"`
-	StatusConditions []metav1.Condition  `json:"statusConditions,omitempty"`
-	OpsConditions    []metav1.Condition  `json:"opsConditions,omitempty"`
-	Message          string              `json:"message,omitempty"`
+	IsReady          bool               `json:"isReady"`
+	DisplayVars      rawJson.RawJson    `json:"displayVars,omitempty"`
+	GeneratedVars    rawJson.RawJson    `json:"generatedVars,omitempty"`
+	Conditions       []metav1.Condition `json:"conditions,omitempty"`
+	StatusConditions []metav1.Condition `json:"statusConditions,omitempty"`
+	OpsConditions    []metav1.Condition `json:"opsConditions,omitempty"`
+	Message          string             `json:"message,omitempty"`
 }
 
 type Resource interface {
@@ -180,9 +180,11 @@ func (r *Request[T]) FailWithOpError(err error) StepResult {
 	r.Object.GetStatus().IsReady = false
 	err2 := r.client.Status().Update(r.ctx, r.Object)
 	if err2 != nil {
-		return NewStepResult(&ctrl.Result{
-			Requeue: true,
-		}, err2)
+		return NewStepResult(
+			&ctrl.Result{
+				Requeue: true,
+			}, err2,
+		)
 	}
 	return NewStepResult(&ctrl.Result{}, err)
 }

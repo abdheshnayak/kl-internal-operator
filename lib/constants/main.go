@@ -44,6 +44,23 @@ var (
 	}
 )
 
+const (
+	AccountRef string = "kloudlite.io/account-ref"
+	ProjectRef string = "kloudlite.io/project-ref"
+
+	ProjectNameKey       string = "kloudlite.io/project.name"
+	MsvcNameKey          string = "kloudlite.io/msvc.name"
+	MresNameKey          string = "kloudlite.io/mres.name"
+	AppNameKey           string = "kloudlite.io/app.name"
+	RouterNameKey        string = "kloudlite.io/router.name"
+	LambdaNameKey        string = "kloudlite.io/lambda.name"
+	AccountRouterNameKey string = "kloudlite.io/account-router.name"
+
+	ClearStatusKey string = "kloudlite.io/clear-status"
+	RestartKey     string = "kloudlite.io/do-restart"
+	NodePoolKey    string = "kloudlite.io/node-pool"
+)
+
 var (
 	KnativeServiceType = metav1.TypeMeta{
 		Kind:       "Service",

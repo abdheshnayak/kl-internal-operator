@@ -2,381 +2,281 @@ package infra
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"operators.kloudlite.io/lib/conditions"
+	infrav1 "operators.kloudlite.io/apis/infra/v1"
 	"operators.kloudlite.io/lib/constants"
 	"operators.kloudlite.io/lib/functions"
 	"operators.kloudlite.io/lib/kresource"
+	"operators.kloudlite.io/lib/logging"
+	rApi "operators.kloudlite.io/lib/operator.v2"
+	stepResult "operators.kloudlite.io/lib/operator.v2/step-result"
 	"operators.kloudlite.io/lib/rcalculate"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apiLabels "k8s.io/apimachinery/pkg/labels"
-	rApi "operators.kloudlite.io/lib/operator"
-	ctrl "sigs.k8s.io/controller-runtime"
-
-	infrav1 "operators.kloudlite.io/apis/infra/v1"
 )
 
-// NodePoolReconciler reconciles a NodePool object
 type NodePoolReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	logger logging.Logger
+	Name   string
 }
 
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=nodepools,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=nodepools/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=nodepools/finalizers,verbs=update
+func (r *NodePoolReconciler) GetName() string {
+	return r.Name
+}
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the NodePool object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
+const (
+	ReconcilationPeriod time.Duration = 30
+)
 
-func (r *NodePoolReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
+const (
+	AccountNodesReady   string = "account-nodes-ready"
+	AccountNodesDeleted string = "account-nodes-deleted"
+)
 
-	req := rApi.NewRequest(ctx, r.Client, oReq.NamespacedName, &infrav1.NodePool{})
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=nodepools,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=nodepools/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=nodepools/finalizers,verbs=update
 
-	if req == nil {
-		return ctrl.Result{}, nil
+func (r *NodePoolReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
+	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &infrav1.NodePool{})
+	if err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	req.Logger.Info("##################### NEW RECONCILATION------------------")
-
-	if req == nil {
-		return ctrl.Result{}, nil
+	if step := req.EnsureChecks(AccountNodesReady, AccountNodesDeleted); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
 	if req.Object.GetDeletionTimestamp() != nil {
 		if x := r.finalize(req); !x.ShouldProceed() {
-			return x.Result(), x.Err()
+			return x.ReconcilerResponse()
 		}
+		return ctrl.Result{}, nil
 	}
 
-	if x := req.EnsureLabels(); !x.ShouldProceed() {
-		fmt.Println(x.Err())
-		return x.Result(), x.Err()
+	req.Logger.Infof("NEW RECONCILATION")
+
+	if step := req.ClearStatusIfAnnotated(); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
-	if !controllerutil.ContainsFinalizer(req.Object, constants.KlFinalizer) {
-		controllerutil.AddFinalizer(req.Object, constants.KlFinalizer)
-		return ctrl.Result{}, r.Update(ctx, req.Object)
+	if step := req.RestartIfAnnotated(); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
-	fmt.Println("reconcileStatus")
-
-	if x := r.reconcileStatus(req); !x.ShouldProceed() {
-		return x.Result(), x.Err()
+	if step := req.EnsureLabelsAndAnnotations(); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
-	fmt.Println("reconcileOperations")
-
-	if x := r.reconcileOperations(req); !x.ShouldProceed() {
-		return x.Result(), x.Err()
+	if step := req.EnsureFinalizers(constants.ForegroundFinalizer, constants.CommonFinalizer); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
-	return ctrl.Result{}, nil
+	if step := r.reconAccountNodes(req); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
+
+	req.Object.Status.IsReady = true
+	req.Logger.Infof("RECONCILATION COMPLETE")
+	return ctrl.Result{RequeueAfter: ReconcilationPeriod * time.Second}, r.Status().Update(ctx, req.Object)
 }
 
-func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) rApi.StepResult {
-	// TODO: delete all the nodes
+func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) stepResult.Result {
+	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 
-	if err, done := func() (error, bool) {
+	check := rApi.Check{Generation: obj.Generation}
 
-		var accountNodes infrav1.AccountNodeList
-		if err := r.Client.List(req.Context(), &accountNodes, &client.ListOptions{
-			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-				"kloudlite.io/node-pool": req.Object.Name,
-			}),
-		}); err != nil {
-
-			if !apiErrors.IsNotFound(err) {
-				return err, false
-			}
-
+	var accountNodes infrav1.AccountNodeList
+	if err := r.Client.List(
+		ctx, &accountNodes, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(
+				map[string]string{constants.NodePoolKey: obj.Name},
+			),
+		},
+	); err != nil {
+		if !apiErrors.IsNotFound(err) {
+			return req.CheckFailed(AccountNodesDeleted, check, err.Error())
 		}
-
-		if len(accountNodes.Items) >= 1 {
-			if _, e := functions.ExecCmd(fmt.Sprintf("kubectl delete accountnode -l %s=%s", "kloudlite.io/node-pool", req.Object.Name), ""); e != nil {
-				return e, false
-			}
-		} else {
-			return nil, true
-		}
-
-		return nil, false
-	}(); err != nil {
-		return req.FailWithStatusError(err)
-	} else if done {
-		return req.Finalize()
 	}
 
-	return req.Done()
+	if len(accountNodes.Items) >= 1 {
+		if err := r.DeleteAllOf(
+			ctx, &infrav1.AccountNode{}, &client.DeleteAllOfOptions{
+				ListOptions: client.ListOptions{
+					LabelSelector: apiLabels.SelectorFromValidatedSet(
+						map[string]string{
+							constants.NodePoolKey: obj.Name,
+						},
+					),
+				},
+			},
+		); err != nil {
+			return req.CheckFailed(AccountNodesDeleted, check, err.Error())
+		}
+		checks[AccountNodesDeleted] = check
+		return req.UpdateStatus()
+	}
+
+	if len(accountNodes.Items) != 0 {
+		return req.Done()
+	}
+	return req.Finalize()
 }
 
-func (r *NodePoolReconciler) reconcileStatus(req *rApi.Request[*infrav1.NodePool]) rApi.StepResult {
+func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePool]) stepResult.Result {
+	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 
-	req.Object.Status.DisplayVars.Reset()
-	var cs []metav1.Condition
-	isReady := true
+	check := rApi.Check{Generation: obj.Generation}
 
-	// get all the accountnodes on this pool
-	/*
-		# Actions performed by this block
-		- fetch list of account nodes
-		- GetTotal Resource available in the current pool
-		- GetTotal usage of resource in the current pool
-		- Calculate action
-	*/
-
-	if err := func() error {
-		var accountNodes infrav1.AccountNodeList
-
-		totalAvailableRes, err := kresource.GetTotalResource(map[string]string{
-			"kloudlite.io/node-pool": req.Object.Name,
-		})
-		if err != nil {
-			return err
+	var accountNodes infrav1.AccountNodeList
+	if err := r.List(
+		ctx, &accountNodes, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(
+				apiLabels.Set{
+					constants.NodePoolKey: req.Object.Name,
+				},
+			),
+		},
+	); err != nil {
+		if !apiErrors.IsNotFound(err) {
+			return req.CheckFailed(AccountNodesReady, check, err.Error())
 		}
-
-		totalUsedRes, err := kresource.GetTotalPodRequest(map[string]string{
-			"kloudlite.io/node-pool": req.Object.Name,
-		}, "requests")
-		if err != nil {
-			return err
-		}
-
-		// get all the nodes in this pool if not create one
-		if err = r.Client.List(req.Context(), &accountNodes, &client.ListOptions{
-			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-				"kloudlite.io/node-pool": req.Object.Name,
-			}),
-		}); err != nil {
-
-			if !apiErrors.IsNotFound(err) {
-				return err
-			}
-
-			isReady = false
-			cs = append(cs,
-				conditions.New(
-					"AddNode",
-					true,
-					"NotFound",
-					"Node pool not created yet",
-				),
-			)
-
-		}
-
-		for _, an := range accountNodes.Items {
-			if an.DeletionTimestamp != nil {
-
-				isReady = false
-				cs = append(cs,
-					conditions.New(
-						"Deleting",
-						true,
-						"Updating",
-						"one node being deleted",
-					),
-				)
-				return nil
-
-			} else if !an.Status.IsReady {
-
-				isReady = false
-				cs = append(cs,
-					conditions.New(
-						"Adding",
-						true,
-						"Updating",
-						"one node being added",
-					),
-				)
-				return nil
-
-			}
-		}
-
-		i := rcalculate.Input{
-			MinNode:          req.Object.Spec.Min,
-			MaxNode:          req.Object.Spec.Max,
-			CurrentNodeCount: len(accountNodes.Items),
-			TotalCapacity:    totalAvailableRes.Memory,
-			Used:             totalUsedRes.Memory,
-		}
-
-		action, msg, err := i.Calculate()
-		if err != nil {
-			return err
-		}
-
-		fmt.Println(msg)
-
-		// return nil
-
-		if action == 1 {
-
-			isReady = false
-			cs = append(cs,
-				conditions.New(
-					"AddNode",
-					true,
-					"NodeNeeded",
-					msg,
-				),
-			)
-
-			return nil
-
-		} else if action == -1 {
-
-			isReady = false
-			cs = append(cs,
-				conditions.New(
-					"DelNode",
-					true,
-					"ExtraFound",
-					msg,
-				),
-			)
-
-			if len(accountNodes.Items) >= 1 {
-				rApi.SetLocal(req, "del-account", accountNodes.Items[0].Name)
-			} else {
-				return fmt.Errorf("needs to delete but no nodes found")
-			}
-
-			return nil
-
-		} else {
-			isReady = true
-			return nil
-		}
-
-	}(); err != nil {
-		return req.FailWithStatusError(err)
 	}
 
-	newConditions, hasUpdated, err := conditions.Patch(req.Object.Status.Conditions, cs)
+	for _, an := range accountNodes.Items {
+		if an.DeletionTimestamp != nil || !an.Status.IsReady {
+			return req.CheckFailed(AccountNodesReady, check, "waiting for deletion/creation of nodes to complete...")
+		}
+	}
+
+	totalAvailableRes, err := kresource.GetTotalResource(
+		map[string]string{
+			constants.NodePoolKey: req.Object.Name,
+		},
+	)
 	if err != nil {
-		return req.FailWithStatusError(err)
+		return req.CheckFailed(AccountNodesReady, check, err.Error())
 	}
 
-	if !hasUpdated && isReady == req.Object.Status.IsReady {
-		return req.Next()
+	totalUsedRes, err := kresource.GetTotalPodRequest(
+		map[string]string{
+			constants.NodePoolKey: obj.Name,
+		}, "requests",
+	)
+	if err != nil {
+		return req.CheckFailed(AccountNodesReady, check, err.Error())
 	}
 
-	req.Object.Status.Conditions = newConditions
-	req.Object.Status.IsReady = isReady
-	if err := r.Status().Update(req.Context(), req.Object); err != nil {
-		return req.FailWithStatusError(err)
+	i := rcalculate.Input{
+		MinNode:          obj.Spec.Min,
+		MaxNode:          obj.Spec.Max,
+		CurrentNodeCount: len(accountNodes.Items),
+		TotalCapacity:    totalAvailableRes.Memory,
+		Used:             totalUsedRes.Memory,
 	}
 
-	return req.Done()
+	action, _, err := i.Calculate()
+	if err != nil {
+		return req.CheckFailed(AccountNodesReady, check, err.Error())
+	}
+
+	switch action {
+	case 1:
+		{
+			if err := r.Client.Create(
+				req.Context(), &infrav1.AccountNode{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: string(uuid.NewUUID()),
+						Labels: map[string]string{
+							constants.NodePoolKey: req.Object.Name,
+						},
+						OwnerReferences: []metav1.OwnerReference{functions.AsOwner(obj, true)},
+					},
+					Spec: infrav1.AccountNodeSpec{
+						AccountRef: obj.Spec.AccountRef,
+						EdgeRef:    obj.Spec.EdgeRef,
+						Provider:   obj.Spec.Provider,
+						Config:     obj.Spec.Config,
+						Region:     obj.Spec.Region,
+						Pool:       obj.Name,
+					},
+				},
+			); err != nil {
+				return req.CheckFailed(AccountNodesReady, check, err.Error())
+			}
+			return req.Done()
+		}
+
+	case -1:
+		{
+			if len(accountNodes.Items) > 0 {
+				if err := r.Delete(
+					ctx, &infrav1.AccountNode{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      accountNodes.Items[0].Name,
+							Namespace: accountNodes.Items[0].Namespace,
+						},
+					},
+				); err != nil {
+					return req.CheckFailed(AccountNodesReady, check, err.Error())
+				}
+				return req.Done()
+			}
+		}
+	case 0:
+		{
+			req.Logger.Infof("accountNodes in sync...")
+			check.Status = true
+		}
+	}
+
+	if check != checks[AccountNodesReady] {
+		checks[AccountNodesReady] = check
+		return req.UpdateStatus()
+	}
+
+	return req.Next()
 }
 
-func (r *NodePoolReconciler) reconcileOperations(req *rApi.Request[*infrav1.NodePool]) rApi.StepResult {
-	if err := func() error {
+func (r *NodePoolReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Logger) error {
+	r.Client = mgr.GetClient()
+	r.Scheme = mgr.GetScheme()
+	r.logger = logger.WithName(r.Name)
 
-		if !meta.IsStatusConditionTrue(req.Object.Status.Conditions, "AddNode") {
-			return nil
-		}
+	builder := ctrl.NewControllerManagedBy(mgr).For(&infrav1.NodePool{})
+	builder.Owns(&infrav1.AccountNode{})
 
-		if err := r.Client.Create(req.Context(), &infrav1.AccountNode{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: string(uuid.NewUUID()),
-				Labels: map[string]string{
-					"kloudlite.io/node-pool": req.Object.Name,
-				},
-				OwnerReferences: []metav1.OwnerReference{
-					functions.AsOwner(req.Object, true),
-				},
-			},
-			Spec: infrav1.AccountNodeSpec{
-				AccountRef: req.Object.Spec.AccountRef,
-				EdgeRef:    req.Object.Spec.EdgeRef,
-				Provider:   req.Object.Spec.Provider,
-				Config:     req.Object.Spec.Config,
-				Region: req.Object.Spec.Region,
-				Pool:       req.Object.Name,
-			},
-		}); err != nil {
-			return err
-		}
-
-		return nil
-	}(); err != nil {
-		return req.FailWithOpError(err)
+	watchList := []client.Object{
+		&corev1.Node{},
+		&corev1.Pod{},
 	}
 
-	if err := func() error {
-
-		if !meta.IsStatusConditionTrue(req.Object.Status.Conditions, "DelNode") {
-			return nil
-		}
-
-		accountName, ok := rApi.GetLocal[string](req, "del-account")
-
-		if !ok {
-			return fmt.Errorf("can't find account name  to delete")
-		}
-
-		if _, e := functions.ExecCmd(fmt.Sprintf("kubectl delete accountnode/%s", accountName), ""); e != nil {
-			return e
-		}
-
-		return nil
-	}(); err != nil {
-		return req.FailWithOpError(err)
+	for i := range watchList {
+		builder.Watches(
+			&source.Kind{Type: watchList[i]}, handler.EnqueueRequestsFromMapFunc(
+				func(o client.Object) []reconcile.Request {
+					l, ok := o.GetLabels()["kloudlite.io/node-pool"]
+					if !ok {
+						return nil
+					}
+					return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: l}}}
+				},
+			),
+		)
 	}
 
-	return req.Done()
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *NodePoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.NodePool{}).
-		Owns(&infrav1.AccountNode{}).
-		Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(
-			func(o client.Object) []reconcile.Request {
-				l, ok := o.GetLabels()["kloudlite.io/node-pool"]
-				if !ok {
-					return nil
-				}
-				return []reconcile.Request{{NamespacedName: types.NamespacedName{
-					Name: l,
-				}}}
-			},
-		)).
-		Watches(&source.Kind{Type: &corev1.Pod{}}, handler.EnqueueRequestsFromMapFunc(
-			func(o client.Object) []reconcile.Request {
-				l, ok := o.GetLabels()["kloudlite.io/node-pool"]
-				if !ok {
-					return nil
-				}
-				return []reconcile.Request{{NamespacedName: types.NamespacedName{
-					Name: l,
-				}}}
-			},
-		)).
-		Complete(r)
+	return builder.Complete(r)
 }

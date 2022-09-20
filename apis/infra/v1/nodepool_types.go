@@ -2,7 +2,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	rApi "operators.kloudlite.io/lib/operator"
+	rApi "operators.kloudlite.io/lib/operator.v2"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -22,9 +22,9 @@ type NodePoolSpec struct {
 	Max        int    `json:"max,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
 // NodePool is the Schema for the nodepools API
 type NodePool struct {
@@ -33,6 +33,10 @@ type NodePool struct {
 
 	Spec   NodePoolSpec `json:"spec,omitempty"`
 	Status rApi.Status  `json:"status,omitempty"`
+}
+
+func (in *NodePool) GetEnsuredAnnotations() map[string]string {
+	return map[string]string{}
 }
 
 func (a *NodePool) GetEnsuredLabels() map[string]string {
@@ -45,7 +49,7 @@ func (a *NodePool) GetStatus() *rApi.Status {
 	return &a.Status
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // NodePoolList contains a list of NodePool
 type NodePoolList struct {

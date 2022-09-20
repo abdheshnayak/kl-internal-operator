@@ -57,9 +57,9 @@ type configService struct {
 	ProxyPort   int32  `json:"proxyPort"`
 }
 
-//+kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts/finalizers,verbs=update
+// +kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts/finalizers,verbs=update
 
 func (r *AccountReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
 
@@ -116,9 +116,11 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 	// checking wg namespace if not present
 	if err := func() error {
-		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-			Name: "wg-" + req.Object.Name,
-		}, &corev1.Namespace{})
+		_, err := rApi.Get(
+			req.Context(), r.Client, types.NamespacedName{
+				Name: "wg-" + req.Object.Name,
+			}, &corev1.Namespace{},
+		)
 
 		if err != nil {
 			if !apiErrors.IsNotFound(err) {
@@ -126,7 +128,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			}
 			isReady = false
 
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"WGNamespaceFound",
 					false,
@@ -143,10 +146,12 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 	// checking dns-server ready
 	if err := func() error {
-		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-			Namespace: "wg-" + req.Object.Name,
-			Name:      "coredns",
-		}, &appsv1.Deployment{})
+		_, err := rApi.Get(
+			req.Context(), r.Client, types.NamespacedName{
+				Namespace: "wg-" + req.Object.Name,
+				Name:      "coredns",
+			}, &appsv1.Deployment{},
+		)
 
 		if err != nil {
 
@@ -155,7 +160,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			}
 
 			isReady = false
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"DNSServerReady",
 					false,
@@ -173,14 +179,17 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 	// check accounts-wg public key generated
 	if err := func() error {
 
-		wgSecrets, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-			Namespace: "wg-" + req.Object.Name,
-			Name:      "wg-server-keys",
-		}, &corev1.Secret{})
+		wgSecrets, err := rApi.Get(
+			req.Context(), r.Client, types.NamespacedName{
+				Namespace: "wg-" + req.Object.Name,
+				Name:      "wg-server-keys",
+			}, &corev1.Secret{},
+		)
 
 		if err != nil {
 			isReady = false
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"WGSecretNotFound",
 					false,
@@ -194,7 +203,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		rApi.SetLocal(req, "accountWgServerKeys", wgSecrets)
 
 		// check if publicKey is set to DisplayVars if not then set it (will be used by device)
-		existingPublicKey, ok := req.Object.Status.DisplayVars.Get("WGPublicKey")
+		existingPublicKey, ok := req.Object.Status.DisplayVars.GetString("WGPublicKey")
 		if ok && string(wgSecrets.Data["public-key"]) != existingPublicKey {
 			retry = true
 		}
@@ -208,10 +217,12 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 	// Generating device Services and also device proxy config
 	if err := func() error {
-		oldConfig, configFetchError := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-			Namespace: "wg-" + req.Object.Name,
-			Name:      "device-proxy-config",
-		}, &corev1.ConfigMap{})
+		oldConfig, configFetchError := rApi.Get(
+			req.Context(), r.Client, types.NamespacedName{
+				Namespace: "wg-" + req.Object.Name,
+				Name:      "device-proxy-config",
+			}, &corev1.ConfigMap{},
+		)
 
 		cServices := []configService{}
 		configData := []configService{}
@@ -268,18 +279,23 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		var devices managementv1.DeviceList
 
 		// fetching all the devices under the current account
-		err := r.List(req.Context(), &devices,
+		err := r.List(
+			req.Context(), &devices,
 			&client.ListOptions{
-				LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-					"kloudlite.io/account-ref": req.Object.Spec.AccountId,
-				}),
+				LabelSelector: apiLabels.SelectorFromValidatedSet(
+					apiLabels.Set{
+						"kloudlite.io/account-ref": req.Object.Spec.AccountId,
+					},
+				),
 			},
 		)
 
 		// sorting the fetched devices
-		sort.Slice(devices.Items, func(i, j int) bool {
-			return devices.Items[i].Name < devices.Items[j].Name
-		})
+		sort.Slice(
+			devices.Items, func(i, j int) bool {
+				return devices.Items[i].Name < devices.Items[j].Name
+			},
+		)
 		// fmt.Printf("devices: %v\n", devices.Items, req.Object.Spec.AccountId)
 		if err != nil {
 			return err
@@ -299,14 +315,16 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			for _, port := range d.Spec.Ports {
 				tempPort := getTempPort(configData, fmt.Sprint(d.Name, "-", port.Port))
 
-				ports = append(ports, corev1.ServicePort{
-					Name: fmt.Sprint(d.Name, "-", port.Port),
-					Port: port.Port,
-					TargetPort: intstr.IntOrString{
-						Type:   0,
-						IntVal: tempPort,
+				ports = append(
+					ports, corev1.ServicePort{
+						Name: fmt.Sprint(d.Name, "-", port.Port),
+						Port: port.Port,
+						TargetPort: intstr.IntOrString{
+							Type:   0,
+							IntVal: tempPort,
+						},
 					},
-				})
+				)
 
 				dIp, e := getRemoteDeviceIp(int64(d.Spec.Offset))
 				if e != nil {
@@ -314,63 +332,73 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 					continue
 				}
 
-				cServices = append(cServices, configService{
-					Id:   fmt.Sprint(d.Name, "-", port.Port),
-					Name: dIp.String(),
-					ServicePort: func() int32 {
-						if port.TargetPort != 0 {
-							return port.TargetPort
-						}
-						return port.Port
-					}(),
-					ProxyPort: tempPort,
-				})
+				cServices = append(
+					cServices, configService{
+						Id:   fmt.Sprint(d.Name, "-", port.Port),
+						Name: dIp.String(),
+						ServicePort: func() int32 {
+							if port.TargetPort != 0 {
+								return port.TargetPort
+							}
+							return port.Port
+						}(),
+						ProxyPort: tempPort,
+					},
+				)
 			}
 			if len(ports) == 0 {
-				ports = append(ports, corev1.ServicePort{
-					Name: "temp",
-					Port: 3000,
-					TargetPort: intstr.IntOrString{
-						Type:   0,
-						IntVal: 3000,
+				ports = append(
+					ports, corev1.ServicePort{
+						Name: "temp",
+						Port: 3000,
+						TargetPort: intstr.IntOrString{
+							Type:   0,
+							IntVal: 3000,
+						},
 					},
-				})
+				)
 			}
 
 			// finally generating the services
-			svcs = append(svcs, corev1.Service{
-				TypeMeta: metav1.TypeMeta{},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      d.Name,
-					Namespace: "wg-" + req.Object.Name,
-					Labels: map[string]string{
-						"proxy-device-service":    "true",
-						"kloudlite.io/device-ref": d.Name,
+			svcs = append(
+				svcs, corev1.Service{
+					TypeMeta: metav1.TypeMeta{},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      d.Name,
+						Namespace: "wg-" + req.Object.Name,
+						Labels: map[string]string{
+							"proxy-device-service":    "true",
+							"kloudlite.io/device-ref": d.Name,
+						},
+						// Annotations not needed (if will run smooth delete this comment in future)
+						// Annotations: map[string]string{
+						// 	"proxy-device-service": "true",
+						// },
+						OwnerReferences: []metav1.OwnerReference{
+							functions.AsOwner(&d),
+						},
 					},
-					// Annotations not needed (if will run smooth delete this comment in future)
-					// Annotations: map[string]string{
-					// 	"proxy-device-service": "true",
-					// },
-					OwnerReferences: []metav1.OwnerReference{
-						functions.AsOwner(&d),
-					},
-				},
 
-				Spec: corev1.ServiceSpec{
-					Ports: ports,
-					Selector: map[string]string{
-						"region": d.Spec.ActiveRegion,
+					Spec: corev1.ServiceSpec{
+						Ports: ports,
+						Selector: map[string]string{
+							"region": d.Spec.ActiveRegion,
+						},
 					},
 				},
-			})
+			)
 		}
-		sort.Slice(cServices, func(i, j int) bool {
-			return cServices[i].Name < cServices[j].Name
-		})
+		sort.Slice(
+			cServices, func(i, j int) bool {
+				return cServices[i].Name < cServices[j].Name
+			},
+		)
 
-		c, err := json.Marshal(map[string][]configService{
-			"services": cServices,
-		})
+		c, err := json.Marshal(
+			map[string][]configService{
+				"services": cServices,
+			},
+		)
 		if err != nil {
 			return err
 		}
@@ -378,7 +406,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		// checking either the new generated config is equal or not
 		equal := false
 		if configFetchError == nil {
-			//fmt.Println(oldConfig.Data["config.json"], string(c))
+			// fmt.Println(oldConfig.Data["config.json"], string(c))
 			equal, err = functions.JSONStringsEqual(oldConfig.Data["config.json"], string(c))
 			if err != nil {
 				return err
@@ -392,7 +420,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		// if not equal set the error the status of ther resource
 		if !equal {
 			isReady = false
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"DeviceProxyConfigMatching",
 					false,
@@ -416,11 +445,14 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		if accountServerKeys, ok := rApi.GetLocal[*corev1.Secret](req, "accountWgServerKeys"); ok {
 			var deviceWgSecretList corev1.SecretList
 
-			err := r.List(req.Context(), &deviceWgSecretList,
+			err := r.List(
+				req.Context(), &deviceWgSecretList,
 				&client.ListOptions{
-					LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-						"kloudlite.io/is-wg-key": "true",
-					}),
+					LabelSelector: apiLabels.SelectorFromValidatedSet(
+						apiLabels.Set{
+							"kloudlite.io/is-wg-key": "true",
+						},
+					),
 					Namespace: "wg-" + req.Object.Name,
 				},
 			)
@@ -440,9 +472,11 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			data.AccountWireguardIp = "10.13.13.1/32"
 			data.AccountWireguardPvtKey = string(accountServerKeys.Data["private-key"])
 
-			sort.Slice(deviceWgSecretList.Items, func(i, j int) bool {
-				return deviceWgSecretList.Items[i].Name < deviceWgSecretList.Items[j].Name
-			})
+			sort.Slice(
+				deviceWgSecretList.Items, func(i, j int) bool {
+					return deviceWgSecretList.Items[i].Name < deviceWgSecretList.Items[j].Name
+				},
+			)
 
 			for _, device := range deviceWgSecretList.Items {
 				ip, ok := device.Data["ip"]
@@ -453,13 +487,15 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 				if !ok {
 					continue
 				}
-				data.Peers = append(data.Peers, struct {
-					PublicKey  string
-					AllowedIps string
-				}{
-					PublicKey:  string(publicKey),
-					AllowedIps: fmt.Sprintf("%s/32", string(ip)),
-				})
+				data.Peers = append(
+					data.Peers, struct {
+						PublicKey  string
+						AllowedIps string
+					}{
+						PublicKey:  string(publicKey),
+						AllowedIps: fmt.Sprintf("%s/32", string(ip)),
+					},
+				)
 			}
 
 			parse, err := templates.Parse(templates.WireGuardConfig, data)
@@ -469,17 +505,20 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 			rApi.SetLocal(req, "serverWgConfig", string(parse))
 
-			existingConfig, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-				Namespace: "wg-" + req.Object.Name,
-				Name:      "wg-server-config",
-			}, &corev1.Secret{})
+			existingConfig, err := rApi.Get(
+				req.Context(), r.Client, types.NamespacedName{
+					Namespace: "wg-" + req.Object.Name,
+					Name:      "wg-server-config",
+				}, &corev1.Secret{},
+			)
 
 			if err != nil {
 				if !apiErrors.IsNotFound(err) {
 					return err
 				}
 				isReady = false
-				cs = append(cs,
+				cs = append(
+					cs,
 					conditions.New(
 						"WGServerConfigExists",
 						false,
@@ -493,7 +532,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			if string(existingConfig.Data["data"]) != string(parse) {
 
 				isReady = false
-				cs = append(cs,
+				cs = append(
+					cs,
 					conditions.New(
 						"WGServerConfigMatching",
 						false,
@@ -513,17 +553,25 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 		var regions managementv1.RegionList
 		var klRegions managementv1.RegionList
-		err := r.List(req.Context(), &regions, &client.ListOptions{
-			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-				"kloudlite.io/account-ref": req.Object.Name,
-			}),
-		})
+		err := r.List(
+			req.Context(), &regions, &client.ListOptions{
+				LabelSelector: apiLabels.SelectorFromValidatedSet(
+					apiLabels.Set{
+						"kloudlite.io/account-ref": req.Object.Name,
+					},
+				),
+			},
+		)
 
-		err2 := r.List(req.Context(), &klRegions, &client.ListOptions{
-			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-				"kloudlite.io/account-ref": "",
-			}),
-		})
+		err2 := r.List(
+			req.Context(), &klRegions, &client.ListOptions{
+				LabelSelector: apiLabels.SelectorFromValidatedSet(
+					apiLabels.Set{
+						"kloudlite.io/account-ref": "",
+					},
+				),
+			},
+		)
 
 		regions.Items = append(regions.Items, klRegions.Items...)
 
@@ -536,7 +584,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			}
 
 			isReady = false
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"RegionsFound",
 					false,
@@ -574,12 +623,16 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		}
 
 		var deployments appsv1.DeploymentList
-		err := r.Client.List(context.TODO(), &deployments, &client.ListOptions{
-			Namespace: fmt.Sprintf("wg-%s", req.Object.Name),
-			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-				"wireguard-deployment": "true",
-			}),
-		})
+		err := r.Client.List(
+			context.TODO(), &deployments, &client.ListOptions{
+				Namespace: fmt.Sprintf("wg-%s", req.Object.Name),
+				LabelSelector: apiLabels.SelectorFromValidatedSet(
+					apiLabels.Set{
+						"wireguard-deployment": "true",
+					},
+				),
+			},
+		)
 
 		if err != nil || len(deployments.Items) == 0 || len(deployments.Items) != len(regions.Items) {
 			if err != nil && !apiErrors.IsNotFound(err) {
@@ -590,12 +643,16 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 		}
 
 		var svcs corev1.ServiceList
-		err = r.Client.List(context.TODO(), &svcs, &client.ListOptions{
-			Namespace: fmt.Sprintf("wg-%s", req.Object.Name),
-			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-				"wireguard-service": "true",
-			}),
-		})
+		err = r.Client.List(
+			context.TODO(), &svcs, &client.ListOptions{
+				Namespace: fmt.Sprintf("wg-%s", req.Object.Name),
+				LabelSelector: apiLabels.SelectorFromValidatedSet(
+					apiLabels.Set{
+						"wireguard-service": "true",
+					},
+				),
+			},
+		)
 
 		if err != nil || len(svcs.Items) == 0 || len(svcs.Items) != len(regions.Items) {
 			if err != nil && !apiErrors.IsNotFound(err) {
@@ -603,7 +660,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 			}
 			isReady = false
 
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"WGServiceFound",
 					false,
@@ -619,7 +677,8 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 			if nodePort == 0 {
 				isReady = false
-				cs = append(cs,
+				cs = append(
+					cs,
 					conditions.New(
 						"WGNodePortNotReady",
 						false,
@@ -645,7 +704,7 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 
 	// checking wg-domain if not present generate
 	if err := func() error {
-		dm, ok := req.Object.Status.GeneratedVars.Get("wg-domain")
+		dm, ok := req.Object.Status.GeneratedVars.GetString("wg-domain")
 
 		if !ok {
 			fmt.Println("not found", dm)
@@ -657,11 +716,15 @@ func (r *AccountReconciler) reconcileStatus(req *rApi.Request[*managementv1.Acco
 				for {
 					name := nameGenerator.Generate()
 					var domains managementv1.DomainList
-					e := r.Client.List(context.TODO(), &domains, &client.ListOptions{
-						LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-							"kloudlite.io/wg-domain": name,
-						}),
-					})
+					e := r.Client.List(
+						context.TODO(), &domains, &client.ListOptions{
+							LabelSelector: apiLabels.SelectorFromValidatedSet(
+								apiLabels.Set{
+									"kloudlite.io/wg-domain": name,
+								},
+							),
+						},
+					)
 					if e != nil || len(domains.Items) == 0 {
 						return name
 					}
@@ -713,11 +776,15 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 	if err := func() error {
 
 		var regions managementv1.RegionList
-		err := r.List(req.Context(), &regions, &client.ListOptions{
-			LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-				"kloudlite.io/account-ref": req.Object.Name,
-			}),
-		})
+		err := r.List(
+			req.Context(), &regions, &client.ListOptions{
+				LabelSelector: apiLabels.SelectorFromValidatedSet(
+					apiLabels.Set{
+						"kloudlite.io/account-ref": req.Object.Name,
+					},
+				),
+			},
+		)
 		if err != nil {
 			return err
 		}
@@ -729,8 +796,8 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 				return fmt.Errorf("CAN'T WG DOMAINS")
 			}
 
-			ipsAny, ok := region.Status.DisplayVars.Get("kloudlite.io/node-ips")
-			if !ok {
+			var ipsAny []any
+			if err := region.Status.DisplayVars.Get("kloudlite.io/node-ips", &ipsAny); err != nil {
 				continue
 			}
 
@@ -739,37 +806,39 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 				return fmt.Errorf(("CAN'T find WG_DOMAIN in environment"))
 			}
 
-			err = functions.KubectlApply(req.Context(), r.Client, &managementv1.Domain{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "management.kloudlite.io/v1",
-					Kind:       "Domain",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: fmt.Sprintf("wg-%s-%s", region.Name, req.Object.Name),
-					Labels: map[string]string{
-						"kloudlite.io/wg-domain":         wgDomain,
-						"kloudlite.io/wg-region":         region.Name,
-						"kloudlite.io/wg-domain-account": req.Object.Name,
+			err = functions.KubectlApply(
+				req.Context(), r.Client, &managementv1.Domain{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "management.kloudlite.io/v1",
+						Kind:       "Domain",
 					},
-					OwnerReferences: []metav1.OwnerReference{
-						functions.AsOwner(req.Object),
-						functions.AsOwner(&region),
+					ObjectMeta: metav1.ObjectMeta{
+						Name: fmt.Sprintf("wg-%s-%s", region.Name, req.Object.Name),
+						Labels: map[string]string{
+							"kloudlite.io/wg-domain":         wgDomain,
+							"kloudlite.io/wg-region":         region.Name,
+							"kloudlite.io/wg-domain-account": req.Object.Name,
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							functions.AsOwner(req.Object),
+							functions.AsOwner(&region),
+						},
+					},
+					Spec: managementv1.DomainSpec{
+						Name: fmt.Sprintf("%s.%s.wg.%s", region.Name, wgDomain, wgBaseDomain),
+						Ips: func() []string {
+
+							// fmt.Println(ipsAny)
+							ips := []string{}
+							for _, ip := range ipsAny {
+								ips = append(ips, ip.(string))
+							}
+							return ips
+
+						}(),
 					},
 				},
-				Spec: managementv1.DomainSpec{
-					Name: fmt.Sprintf("%s.%s.wg.%s", region.Name, wgDomain, wgBaseDomain),
-					Ips: func() []string {
-
-						// fmt.Println(ipsAny)
-						ips := []string{}
-						for _, ip := range ipsAny.([]interface{}) {
-							ips = append(ips, ip.(string))
-						}
-						return ips
-
-					}(),
-				},
-			})
+			)
 
 			if err != nil {
 				fmt.Println(err)
@@ -798,19 +867,27 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 			var regions managementv1.RegionList
 			var klregions managementv1.RegionList
 
-			if err := r.Client.List(req.Context(), &regions, &client.ListOptions{
-				LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-					"kloudlite.io/account-ref": req.Object.Name,
-				}),
-			}); err != nil {
+			if err := r.Client.List(
+				req.Context(), &regions, &client.ListOptions{
+					LabelSelector: apiLabels.SelectorFromValidatedSet(
+						apiLabels.Set{
+							"kloudlite.io/account-ref": req.Object.Name,
+						},
+					),
+				},
+			); err != nil {
 				return err
 			}
 
-			if err := r.Client.List(req.Context(), &klregions, &client.ListOptions{
-				LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-					"kloudlite.io/account-ref": "",
-				}),
-			}); err != nil {
+			if err := r.Client.List(
+				req.Context(), &klregions, &client.ListOptions{
+					LabelSelector: apiLabels.SelectorFromValidatedSet(
+						apiLabels.Set{
+							"kloudlite.io/account-ref": "",
+						},
+					),
+				},
+			); err != nil {
 				return err
 			}
 
@@ -829,18 +906,25 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 					corednsConfigExists = false
 				}
 
-				if _, err := rApi.Get(req.Context(), r.Client, functions.NN("wg-"+req.Object.Name, "device-proxy-config"), &corev1.ConfigMap{}); err != nil {
+				if _, err := rApi.Get(
+					req.Context(),
+					r.Client,
+					functions.NN("wg-"+req.Object.Name, "device-proxy-config"),
+					&corev1.ConfigMap{},
+				); err != nil {
 					corednsConfigExists = false
 				}
 
-				b, err := templates.Parse(templates.WireGuard, map[string]any{
-					"obj":                        req.Object,
-					"owner-refs":                 functions.AsOwner(req.Object, true),
-					"region-owner-refs":          functions.AsOwner(&region),
-					"region":                     region.Name,
-					"coredns-config-exists":      corednsConfigExists,
-					"device-proxy-config-exists": deviceProxyConfigExists,
-				})
+				b, err := templates.Parse(
+					templates.WireGuard, map[string]any{
+						"obj":                        req.Object,
+						"owner-refs":                 functions.AsOwner(req.Object, true),
+						"region-owner-refs":          functions.AsOwner(&region),
+						"region":                     region.Name,
+						"coredns-config-exists":      corednsConfigExists,
+						"device-proxy-config-exists": deviceProxyConfigExists,
+					},
+				)
 				if err != nil {
 					return err
 				}
@@ -873,20 +957,24 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 				return err
 			}
 
-			err = functions.KubectlApply(req.Context(), r.Client,
-				functions.ParseSecret(&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "wg-server-keys",
-						Namespace: "wg-" + req.Object.Name,
-						OwnerReferences: []metav1.OwnerReference{
-							functions.AsOwner(req.Object, true),
+			err = functions.KubectlApply(
+				req.Context(), r.Client,
+				functions.ParseSecret(
+					&corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "wg-server-keys",
+							Namespace: "wg-" + req.Object.Name,
+							OwnerReferences: []metav1.OwnerReference{
+								functions.AsOwner(req.Object, true),
+							},
+						},
+						Data: map[string][]byte{
+							"private-key": []byte(priv),
+							"public-key":  []byte(pub),
 						},
 					},
-					Data: map[string][]byte{
-						"private-key": []byte(priv),
-						"public-key":  []byte(pub),
-					},
-				}))
+				),
+			)
 			if err != nil {
 				return err
 			}
@@ -906,18 +994,20 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 				return errors.New("serverWgConfig not found")
 			}
 
-			err := r.Client.Create(req.Context(), &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "wg-server-config",
-					Namespace: "wg-" + req.Object.Name,
-					OwnerReferences: []metav1.OwnerReference{
-						functions.AsOwner(req.Object),
+			err := r.Client.Create(
+				req.Context(), &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "wg-server-config",
+						Namespace: "wg-" + req.Object.Name,
+						OwnerReferences: []metav1.OwnerReference{
+							functions.AsOwner(req.Object),
+						},
+					},
+					Data: map[string][]byte{
+						"data": []byte(serverConfig),
 					},
 				},
-				Data: map[string][]byte{
-					"data": []byte(serverConfig),
-				},
-			})
+			)
 			if err != nil {
 				return err
 			}
@@ -935,15 +1025,17 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 			if !ok {
 				return errors.New("serverWgConfig not found")
 			}
-			err := r.Client.Update(req.Context(), &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "wg-server-config",
-					Namespace: "wg-" + req.Object.Name,
+			err := r.Client.Update(
+				req.Context(), &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "wg-server-config",
+						Namespace: "wg-" + req.Object.Name,
+					},
+					Data: map[string][]byte{
+						"data": []byte(serverConfig),
+					},
 				},
-				Data: map[string][]byte{
-					"data": []byte(serverConfig),
-				},
-			})
+			)
 			if err != nil {
 				return err
 			}
@@ -956,7 +1048,11 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 			var updateError error
 			for _, region := range regions.Items {
 
-				_, err = http.Post(fmt.Sprintf("http://wg-api-service-%s.wg-%s.svc.cluster.local:2998/post", region.Name, req.Object.Name), "application/json", bytes.NewBuffer([]byte(serverConfig)))
+				_, err = http.Post(
+					fmt.Sprintf("http://wg-api-service-%s.wg-%s.svc.cluster.local:2998/post", region.Name, req.Object.Name),
+					"application/json",
+					bytes.NewBuffer([]byte(serverConfig)),
+				)
 
 				if err != nil {
 					fmt.Println(region.Name, ":", err)
@@ -998,27 +1094,31 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 			return fmt.Errorf("failed to fetch device-proxy-services")
 		}
 
-		sort.Slice(configs, func(i, j int) bool {
-			return configs[i].Name < configs[j].Name
-		})
+		sort.Slice(
+			configs, func(i, j int) bool {
+				return configs[i].Name < configs[j].Name
+			},
+		)
 
 		// fmt.Printf("config,services: %+v\n%+v\n", configs, services)
-		b, err := templates.Parse(templates.ProxyDevice, map[string]any{
-			"services": services,
-			"configmap": map[string][]configService{
-				"services": configs,
+		b, err := templates.Parse(
+			templates.ProxyDevice, map[string]any{
+				"services": services,
+				"configmap": map[string][]configService{
+					"services": configs,
+				},
+				"namespace": "wg-" + req.Object.Name,
+				"account-refs": []metav1.OwnerReference{
+					functions.AsOwner(req.Object),
+				},
 			},
-			"namespace": "wg-" + req.Object.Name,
-			"account-refs": []metav1.OwnerReference{
-				functions.AsOwner(req.Object),
-			},
-		})
+		)
 
 		if err != nil {
 			return err
 		}
 
-		//fmt.Println(string(b))
+		// fmt.Println(string(b))
 		_, err = functions.KubectlApplyExec(b)
 
 		// fmt.Println(string(b))
@@ -1026,9 +1126,11 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 			return err
 		}
 
-		configJson, err := json.Marshal(map[string][]configService{
-			"services": configs,
-		})
+		configJson, err := json.Marshal(
+			map[string][]configService{
+				"services": configs,
+			},
+		)
 		if err != nil {
 			return err
 		}
@@ -1041,7 +1143,11 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 		var updateError error
 		for _, region := range regions.Items {
 
-			_, err = http.Post(fmt.Sprintf("http://wg-api-service-%s.wg-%s.svc.cluster.local:2999/post", region.Name, req.Object.Name), "application/json", bytes.NewBuffer(configJson))
+			_, err = http.Post(
+				fmt.Sprintf("http://wg-api-service-%s.wg-%s.svc.cluster.local:2999/post", region.Name, req.Object.Name),
+				"application/json",
+				bytes.NewBuffer(configJson),
+			)
 
 			if err != nil {
 				fmt.Println(region.Name, ":", err)
@@ -1054,10 +1160,12 @@ func (r *AccountReconciler) reconcileOperations(req *rApi.Request[*managementv1.
 
 		return nil
 	}(); err != nil {
-		return rApi.NewStepResult(&ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: 5,
-		}, err)
+		return rApi.NewStepResult(
+			&ctrl.Result{
+				Requeue:      true,
+				RequeueAfter: 5,
+			}, err,
+		)
 	}
 
 	return req.Done()
@@ -1070,72 +1178,87 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Namespace{}).
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.Deployment{}).
-		Watches(&source.Kind{Type: &managementv1.Device{}}, handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
-			if object.GetLabels() == nil {
-				return nil
-			}
-			account, ok := object.GetLabels()["kloudlite.io/account-ref"]
-			if !ok {
-				return nil
-			}
-			return []reconcile.Request{
-				{
-					NamespacedName: types.NamespacedName{
-						Name: account,
-					},
-				},
-			}
-		})).
-		Watches(&source.Kind{Type: &managementv1.Region{}}, handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
-
-			if object.GetLabels() == nil {
-				return nil
-			}
-
-			l := object.GetLabels()
-			accountId := l["kloudlite.io/account-ref"]
-
-			var accounts managementv1.AccountList
-			results := []reconcile.Request{}
-			ctx := context.TODO()
-
-			if accountId == "" {
-				err := r.Client.List(ctx, &accounts, &client.ListOptions{
-					LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{}),
-				})
-				if err != nil {
-					return nil
-				}
-
-				for _, account := range accounts.Items {
-					results = append(results, reconcile.Request{
-						NamespacedName: types.NamespacedName{
-							Name: account.Name,
+		Watches(
+			&source.Kind{Type: &managementv1.Device{}}, handler.EnqueueRequestsFromMapFunc(
+				func(object client.Object) []reconcile.Request {
+					if object.GetLabels() == nil {
+						return nil
+					}
+					account, ok := object.GetLabels()["kloudlite.io/account-ref"]
+					if !ok {
+						return nil
+					}
+					return []reconcile.Request{
+						{
+							NamespacedName: types.NamespacedName{
+								Name: account,
+							},
 						},
-					})
-				}
-			} else {
+					}
+				},
+			),
+		).
+		Watches(
+			&source.Kind{Type: &managementv1.Region{}}, handler.EnqueueRequestsFromMapFunc(
+				func(object client.Object) []reconcile.Request {
 
-				account, err := rApi.Get(ctx, r.Client,
-					types.NamespacedName{
-						Name: accountId,
-					}, &managementv1.Account{},
-				)
-				if err != nil {
-					return nil
-				}
+					if object.GetLabels() == nil {
+						return nil
+					}
 
-				results = append(results, reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Name: account.Name,
-					},
-				})
-			}
-			if len(results) == 0 {
-				return nil
-			}
+					l := object.GetLabels()
+					accountId := l["kloudlite.io/account-ref"]
 
-			return results
-		})).
+					var accounts managementv1.AccountList
+					results := []reconcile.Request{}
+					ctx := context.TODO()
+
+					if accountId == "" {
+						err := r.Client.List(
+							ctx, &accounts, &client.ListOptions{
+								LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{}),
+							},
+						)
+						if err != nil {
+							return nil
+						}
+
+						for _, account := range accounts.Items {
+							results = append(
+								results, reconcile.Request{
+									NamespacedName: types.NamespacedName{
+										Name: account.Name,
+									},
+								},
+							)
+						}
+					} else {
+
+						account, err := rApi.Get(
+							ctx, r.Client,
+							types.NamespacedName{
+								Name: accountId,
+							}, &managementv1.Account{},
+						)
+						if err != nil {
+							return nil
+						}
+
+						results = append(
+							results, reconcile.Request{
+								NamespacedName: types.NamespacedName{
+									Name: account.Name,
+								},
+							},
+						)
+					}
+					if len(results) == 0 {
+						return nil
+					}
+
+					return results
+				},
+			),
+		).
 		Complete(r)
 }

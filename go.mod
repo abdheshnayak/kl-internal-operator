@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/Masterminds/sprig/v3 v3.2.2
 	github.com/confluentinc/confluent-kafka-go v1.8.2
+	github.com/fatih/color v1.7.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/matoous/go-nanoid/v2 v2.0.0
@@ -56,6 +57,8 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
+	github.com/mattn/go-colorable v0.0.9 // indirect
+	github.com/mattn/go-isatty v0.0.3 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.0 // indirect
