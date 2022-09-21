@@ -1,0 +1,151 @@
+{{- $obj := get . "obj"}}
+{{- $region := get . "region"}}
+{{- $regionOwnerRefs := get . "region-owner-refs" }}
+
+
+{{- with $obj }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "wireguard-deployment-{{$region}}"
+  annotations:
+    kloudlite.io/account-ref: {{.Name}}
+  labels:
+    kloudlite.io/wg-deployment: "true"
+  namespace: "wg-{{.Name}}"
+  ownerReferences:
+    - {{ $regionOwnerRefs | toJson }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: "wireguard-{{$region}}"
+  template:
+    metadata:
+      # annotations:
+      #   linkerd.io/inject: disabled
+      labels:
+        app: "wireguard-{{$region}}"
+        region: {{$region}}
+        kloudlite.io/wg-pod: "true"
+    spec:
+      nodeSelector:
+        kloudlite.io/region: {{$region}}
+      containers:
+      - name: proxy
+        imagePullPolicy: IfNotPresent
+        image: harbor.dev.madhouselabs.io/public/kloudlite/proxy:v2
+        env:
+          - name: CONFIG_FILE
+            value: /proxy-config/config.json
+
+        volumeMounts:
+          - mountPath: /proxy-config
+            name: config-path
+
+      - name: wireguard
+        # image: ghcr.io/linuxserver/wireguard
+        imagePullPolicy: IfNotPresent
+        image: harbor.dev.madhouselabs.io/public/kloudlite/wg-restart:v2
+        # command:
+        #   - sh
+        #   - -c
+        #   - |-
+        #     wg-quick up wg0 
+
+        #     while [ true ];
+        #     do
+        #       x=$(wg | wc -l)
+        #       [ $x -eq 0 ] && exit 1
+        #       sleep 1;
+        #     done
+        securityContext:
+          capabilities:
+            add:
+              - NET_ADMIN
+              - SYS_MODULE
+          privileged: true
+        volumeMounts:
+          - name: wg-config
+            mountPath: /etc/wireguard/wg0.conf
+            subPath: wg0.conf
+          - name: host-volumes
+            mountPath: /lib/modules
+        ports:
+        - containerPort: 51820
+          protocol: UDP
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+      volumes:
+        - name: wg-config
+          secret:
+            secretName: wg-server-config
+            items:
+              - key: data
+                path: wg0.conf
+        - name: host-volumes
+          hostPath:
+            path: /lib/modules
+            type: Directory
+
+        - name: config-path
+          configMap:
+            name: "device-proxy-config"
+            items:
+              - key: config.json
+                path: config.json
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  annotations:
+    kloudlite.io/account-ref: {{.Name}}
+  labels:
+    k8s-app: wireguard
+    kloudlite.io/wg-service: "true"
+    region: {{$region}}
+  name: "wireguard-service-{{$region}}"
+  namespace: "wg-{{.Name}}"
+  ownerReferences:
+    - {{ $regionOwnerRefs | toJson }}
+spec:
+  type: NodePort
+  ports:
+    - port: 51820
+      protocol: UDP
+      targetPort: 51820
+  selector:
+    app: "wireguard-{{$region}}"
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  annotations:
+    kloudlite.io/account-ref: {{.Name}}
+  labels:
+    kloudlite.io/proxy-api: "true"
+    region: {{$region}}
+  name: "wg-api-service-{{$region}}"
+  namespace: "wg-{{.Name}}"
+  ownerReferences:
+    - {{ $regionOwnerRefs | toJson }}
+spec:
+  ports:
+    - port: 2999
+      name: proxy-restart
+    - port: 2998
+      name: wg-restart
+  selector:
+    app: "wireguard-{{$region}}"
+
+{{- end}}

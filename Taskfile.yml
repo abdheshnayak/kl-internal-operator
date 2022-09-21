@@ -22,8 +22,8 @@ tasks:
 
   run:
     env:
-      COMM: false
-      INFRA: true
+      COMM: true
+      INFRA: false
       NAMESERVER_ENDPOINT: http://dns-api.kl-core.svc.cluster.local
       WG_DOMAIN: kloudlite.io
       SSH_KEY_PATH: /home/nonroot/ssh

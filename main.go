@@ -5,14 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	// "google.golang.org/genproto/googleapis/cloud/bigquery/dataexchange/common"
 	"k8s.io/client-go/rest"
 	"operators.kloudlite.io/lib/logging"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -21,15 +16,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	// deviceclusterv1 "operators.kloudlite.io/apis/device-cluster/v1"
 	managementv1 "operators.kloudlite.io/apis/management/v1"
-	commoncontroller "operators.kloudlite.io/controllers/common"
+	account "operators.kloudlite.io/controllers/common/account"
 
-	// deviceclustercontrollers "operators.kloudlite.io/controllers/device-cluster"
-	// management "operators.kloudlite.io/controllers/management"
-	// managementcontrollers "operators.kloudlite.io/controllers/management"
-	// managementcontrollers "operators.kloudlite.io/controllers/management"
 	infrav1 "operators.kloudlite.io/apis/infra/v1"
+	commoncontroller "operators.kloudlite.io/controllers/common"
 	infracontrollers "operators.kloudlite.io/controllers/infra"
 	// +kubebuilder:scaffold:imports
 )
@@ -41,9 +32,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(managementv1.AddToScheme(scheme))
-	// utilruntime.Must(deviceclusterv1.AddToScheme(scheme))
 	utilruntime.Must(infrav1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
@@ -58,8 +47,6 @@ func fromEnv(key string) string {
 
 func main() {
 
-	// executationMode := os.Getenv("EXECUTATION_MODE")
-
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -67,16 +54,6 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9091", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":9092", "The address the probe endpoint binds to.")
 
-	// if executationMode == "management" {
-	// 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9091", "The address the metric endpoint binds to.")
-	// 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":9092", "The address the probe endpoint binds to.")
-
-	// }
-	// if executationMode == "device" {
-	// 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9093", "The address the metric endpoint binds to.")
-	// 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":9094", "The address the probe endpoint binds to.")
-
-	// }
 	flag.BoolVar(
 		&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
@@ -138,15 +115,18 @@ func main() {
 		if os.Getenv("COMM") != "true" {
 			return
 		}
-		return
 
-		if err := (&commoncontroller.AccountReconciler{
+		logger := logging.NewOrDie(&logging.Options{Dev: true})
+
+		if err := (&account.AccountReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr); err != nil {
+		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
 			os.Exit(1)
 		}
+
+		// return
 
 		if err := (&commoncontroller.DomainReconciler{
 			Client: mgr.GetClient(),
@@ -174,12 +154,11 @@ func main() {
 	}()
 
 	func() {
-		// if os.Getenv("INFRA") != "true" {
-		// 	return
-		// }
-		// return
+		if os.Getenv("INFRA") != "true" {
+			return
+		}
 
-		logger := logging.NewOrDie(&logging.Options{Dev: isDev})
+		logger := logging.NewOrDie(&logging.Options{Dev: true})
 
 		if err := (&infracontrollers.NodePoolReconciler{
 			Client: mgr.GetClient(),

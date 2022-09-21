@@ -197,10 +197,10 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 	case 1:
 		{
 			if err := r.Client.Create(
-				req.Context(), &infrav1.AccountNode{
+				ctx, &infrav1.AccountNode{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: string(uuid.NewUUID()),
-						Labels: map[string]string{
+						Labels: apiLabels.Set{
 							constants.NodePoolKey: req.Object.Name,
 						},
 						OwnerReferences: []metav1.OwnerReference{functions.AsOwner(obj, true)},
@@ -268,7 +268,7 @@ func (r *NodePoolReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.L
 		builder.Watches(
 			&source.Kind{Type: watchList[i]}, handler.EnqueueRequestsFromMapFunc(
 				func(o client.Object) []reconcile.Request {
-					l, ok := o.GetLabels()["kloudlite.io/node-pool"]
+					l, ok := o.GetLabels()[constants.NodePoolKey]
 					if !ok {
 						return nil
 					}

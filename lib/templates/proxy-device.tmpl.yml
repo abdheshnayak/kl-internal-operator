@@ -2,12 +2,15 @@
 {{- $configmap := get . "configmap"}}
 {{- $namespace := get . "namespace"}}
 {{- $accountRefs := get . "account-refs"}}
+{{- $accountId := get . "account-id"}}
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "device-proxy-config"
   namespace: {{$namespace}}
+  annotations:
+    kloudlite.io/account-ref: {{.$accountId}}
   # labels: {{.Labels | toJson }}
   # annotations: {{.Annotations | toJson}}
   ownerReferences: {{$accountRefs | toJson}}
@@ -24,6 +27,8 @@ data:
 kind: Service
 apiVersion: v1
 metadata:
+  annotations:
+    kloudlite.io/device-ref: {{.Name}}
   # labels:
   #   mirror.linkerd.io/exported: "true"
   name: {{.Name}}

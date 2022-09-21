@@ -5,14 +5,8 @@ import (
 	rApi "operators.kloudlite.io/lib/operator.v2"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // NodePoolSpec defines the desired state of NodePool
 type NodePoolSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	AccountRef string `json:"accountRef,omitempty"`
 	EdgeRef    string `json:"edgeRef,omitempty"`
 	Provider   string `json:"provider,omitempty"`

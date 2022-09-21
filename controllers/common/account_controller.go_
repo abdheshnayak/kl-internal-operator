@@ -19,8 +19,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"operators.kloudlite.io/lib/conditions"
+	"operators.kloudlite.io/lib/constants"
 	"operators.kloudlite.io/lib/errors"
 	"operators.kloudlite.io/lib/functions"
+	"operators.kloudlite.io/lib/logging"
 	"operators.kloudlite.io/lib/templates"
 	"operators.kloudlite.io/lib/wireguard"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +33,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	rApi "operators.kloudlite.io/lib/operator"
+	rApi "operators.kloudlite.io/lib/operator.v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	managementv1 "operators.kloudlite.io/apis/management/v1"
@@ -47,7 +49,13 @@ import (
 // AccountReconciler reconciles a Account object
 type AccountReconciler struct {
 	client.Client
+	Name   string
+	logger logging.Logger
 	Scheme *runtime.Scheme
+}
+
+func (r *AccountReconciler) GetName() string {
+	return r.Name
 }
 
 type configService struct {
@@ -57,9 +65,62 @@ type configService struct {
 	ProxyPort   int32  `json:"proxyPort"`
 }
 
+const (
+	ReconcilationPeriod time.Duration = 30
+)
+
+const (
+	AccountReady   = "acocunt-ready"
+	AccountDeleted = "acocunt-deleted"
+)
+
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts/finalizers,verbs=update
+
+func (r *AccountReconciler) Reconcilee(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
+	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &managementv1.Account{})
+	if err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if step := req.EnsureChecks(AccountReady, AccountDeleted); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
+
+	if req.Object.GetDeletionTimestamp() != nil {
+		if x := r.finalize(req); !x.ShouldProceed() {
+			return x.ReconcilerResponse()
+		}
+		return ctrl.Result{}, nil
+	}
+
+	req.Logger.Infof("NEW RECONCILATION")
+
+	if step := req.ClearStatusIfAnnotated(); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
+
+	if step := req.RestartIfAnnotated(); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
+
+	if step := req.EnsureLabelsAndAnnotations(); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
+
+	if step := req.EnsureFinalizers(constants.ForegroundFinalizer, constants.CommonFinalizer); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
+
+	// if step := r.reconAccountNodes(req); !step.ShouldProceed() {
+	// 	return step.ReconcilerResponse()
+	// }
+
+	req.Object.Status.IsReady = true
+	req.Logger.Infof("RECONCILATION COMPLETE")
+	return ctrl.Result{RequeueAfter: ReconcilationPeriod * time.Second}, r.Status().Update(ctx, req.Object)
+}
 
 func (r *AccountReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
 

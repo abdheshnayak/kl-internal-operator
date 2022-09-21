@@ -2,19 +2,13 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	rApi "operators.kloudlite.io/lib/operator"
+	rApi "operators.kloudlite.io/lib/operator.v2"
 )
 
-// / AccountSpec defines the desired state of Account
 type AccountSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	AccountId    string   `json:"accountId,omitempty"`
 	OwnedDomains []string `json:"ownedDomains,omitempty"`
 }
-
-// AccountStatus defines the observed state of Account
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
@@ -27,6 +21,10 @@ type Account struct {
 
 	Spec   AccountSpec `json:"spec,omitempty"`
 	Status rApi.Status `json:"status,omitempty"`
+}
+
+func (in *Account) GetEnsuredAnnotations() map[string]string {
+	return map[string]string{}
 }
 
 func (a *Account) GetEnsuredLabels() map[string]string {

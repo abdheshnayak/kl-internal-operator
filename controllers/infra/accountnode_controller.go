@@ -82,7 +82,7 @@ func (r *AccountNodeReconciler) Reconcile(ctx context.Context, oReq ctrl.Request
 	}
 
 	if x := req.EnsureLabels(); !x.ShouldProceed() {
-		fmt.Println(x.Err())
+		// fmt.Println(x.Err())
 		return x.Result(), x.Err()
 	}
 

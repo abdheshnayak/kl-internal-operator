@@ -55,10 +55,16 @@ const (
 	RouterNameKey        string = "kloudlite.io/router.name"
 	LambdaNameKey        string = "kloudlite.io/lambda.name"
 	AccountRouterNameKey string = "kloudlite.io/account-router.name"
+	// DeviceWgKey          string = "klouldite.io/wg-device-key"
+	DeviceWgKey string = "kloudlite.io/is-wg-key"
+	WgService   string = "kloudlite.io/wg-service"
+	WgDeploy    string = "kloudlite.io/wg-deployment"
+	WgDomain    string = "kloudlite.io/wg-domain"
 
 	ClearStatusKey string = "kloudlite.io/clear-status"
 	RestartKey     string = "kloudlite.io/do-restart"
 	NodePoolKey    string = "kloudlite.io/node-pool"
+	NodeIps        string = "kloudlite.io/node-ips"
 )
 
 var (

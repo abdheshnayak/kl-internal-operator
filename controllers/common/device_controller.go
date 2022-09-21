@@ -576,7 +576,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 			return err
 		}
 
-		wgPublicKey, ok := account.Status.DisplayVars.GetString("WGPublicKey")
+		wgPublicKey, ok := account.Status.DisplayVars.GetString("wg-public-key")
 
 		if !ok {
 			return fmt.Errorf("wg public key not available")
@@ -602,9 +602,10 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 
 		for _, region := range regions.Items {
 
-			wgNodePort, ok := account.Status.DisplayVars.GetString("WGNodePort-" + region.Name)
+			wgNodePort, ok := account.Status.DisplayVars.GetString("wg-nodeport-" + region.Name)
 
 			if !ok {
+				fmt.Println(req.Object.Spec.Account, "wg-nodeport-"+region.Name)
 				fmt.Println("node port not available")
 				continue
 			}
@@ -653,7 +654,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 
 		}
 
-		err = functions.KubectlApply(
+		if err = functions.KubectlApply(
 			req.Context(), r.Client, functions.ParseSecret(
 				&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
@@ -672,9 +673,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 					StringData: map[string]string{},
 				},
 			),
-		)
-
-		if err != nil {
+		); err != nil {
 			return err
 		}
 

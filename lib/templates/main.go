@@ -118,4 +118,6 @@ const (
 	CreateNode            templateFile = "./nodejob.tmpl.yaml"
 	NodePools             templateFile = "./node-pools.tmpl.yml"
 	Region                templateFile = "./region.tmpl.yml"
+	Coredns               templateFile = "./coredns.tmpl.yml"
+	WGDeploy              templateFile = "./wg-deployment.tmpl.yml"
 )
