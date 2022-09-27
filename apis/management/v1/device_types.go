@@ -39,6 +39,10 @@ type Device struct {
 	Status rApi.Status `json:"status,omitempty"`
 }
 
+func (in *Device) GetEnsuredAnnotations() map[string]string {
+	return map[string]string{}
+}
+
 func (d *Device) GetEnsuredLabels() map[string]string {
 	return map[string]string{
 		"kloudlite.io/device-id":   d.Spec.DeviceId,

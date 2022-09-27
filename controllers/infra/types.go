@@ -33,7 +33,6 @@ type awsNode struct {
 	Region       string `yaml:"region" json:"region"`
 	InstanceType string `yaml:"instanceType" json:"instanceType"`
 	VPC          string `yaml:"vpc,omitempty" json:"vpc,omitempty"`
-	AMI          string `yaml:"ami" json:"ami"`
 }
 
 type doConfig struct {
@@ -51,11 +50,9 @@ type awsConfig struct {
 }
 
 type doKLConfValues struct {
-	ServerUrl   string `yaml:"serverUrl" json:"serverUrl"`
-	SshKeyPath  string `yaml:"sshKeyPath" json:"sshKeyPath"`
 	StorePath   string `yaml:"storePath" json:"storePath"`
 	TfTemplates string `yaml:"tfTemplatesPath" json:"tfTemplatesPath"`
-	JoinToken   string `yaml:"joinToken" json:"joinToken"`
+	Secrets     string `yaml:"secrets" json:"secrets"`
 }
 
 type doKLConf struct {

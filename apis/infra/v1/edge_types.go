@@ -2,7 +2,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	rApi "operators.kloudlite.io/lib/operator"
+	rApi "operators.kloudlite.io/lib/operator.v2"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -45,6 +45,10 @@ type Edge struct {
 
 	Spec   EdgeSpec    `json:"spec,omitempty"`
 	Status rApi.Status `json:"status,omitempty"`
+}
+
+func (in *Edge) GetEnsuredAnnotations() map[string]string {
+	return map[string]string{}
 }
 
 func (a *Edge) GetEnsuredLabels() map[string]string {

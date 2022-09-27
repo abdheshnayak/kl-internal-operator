@@ -2,7 +2,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	rApi "operators.kloudlite.io/lib/operator"
+	rApi "operators.kloudlite.io/lib/operator.v2"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -35,6 +35,10 @@ type Region struct {
 
 	Spec   RegionSpec  `json:"spec,omitempty"`
 	Status rApi.Status `json:"status,omitempty"`
+}
+
+func (in *Region) GetEnsuredAnnotations() map[string]string {
+	return map[string]string{}
 }
 
 func (r *Region) GetEnsuredLabels() map[string]string {

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"os"
 	"sort"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"operators.kloudlite.io/env"
 	"operators.kloudlite.io/lib/constants"
 	"operators.kloudlite.io/lib/errors"
 	"operators.kloudlite.io/lib/functions"
@@ -51,6 +51,8 @@ type AccountReconciler struct {
 	Name   string
 	logger logging.Logger
 	Scheme *runtime.Scheme
+
+	Env *env.Env
 }
 
 func (r *AccountReconciler) GetName() string {
@@ -139,7 +141,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, request ctrl.Request)
 		return step.ReconcilerResponse()
 	}
 
-	if step := r.fetchRequireds(req); !step.ShouldProceed() {
+	if step := r.fetchRequired(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
 	}
 
@@ -212,7 +214,7 @@ func (r *AccountReconciler) reconNamespace(req *rApi.Request[*managementv1.Accou
 	return req.Next()
 }
 
-func (r *AccountReconciler) fetchRequireds(req *rApi.Request[*managementv1.Account]) stepResult.Result {
+func (r *AccountReconciler) fetchRequired(req *rApi.Request[*managementv1.Account]) stepResult.Result {
 
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
@@ -237,7 +239,7 @@ func (r *AccountReconciler) fetchRequireds(req *rApi.Request[*managementv1.Accou
 			ctx, &klRegions, &client.ListOptions{
 				LabelSelector: apiLabels.SelectorFromValidatedSet(
 					apiLabels.Set{
-						constants.AccountRef: "",
+						constants.AccountRef: "kl-core",
 					},
 				),
 			},
@@ -246,6 +248,8 @@ func (r *AccountReconciler) fetchRequireds(req *rApi.Request[*managementv1.Accou
 		}
 
 		regions.Items = append(regions.Items, klRegions.Items...)
+
+		// fmt.Println(regions.Items,"here...................")
 
 		rApi.SetLocal(req, "regions", regions)
 
@@ -767,11 +771,6 @@ func (r *AccountReconciler) reconDomain(req *rApi.Request[*managementv1.Account]
 			continue
 		}
 
-		wgBaseDomain := os.Getenv("WG_DOMAIN")
-		if wgDomain == "" {
-			return req.CheckFailed(DomainReady, check, "can't get wg_domain from env")
-		}
-
 		if err := functions.KubectlApply(
 			ctx, r.Client, &managementv1.Domain{
 				TypeMeta: metav1.TypeMeta{
@@ -791,7 +790,7 @@ func (r *AccountReconciler) reconDomain(req *rApi.Request[*managementv1.Account]
 					},
 				},
 				Spec: managementv1.DomainSpec{
-					Name: fmt.Sprintf("%s.%s.wg.%s", region.Name, wgDomain, wgBaseDomain),
+					Name: fmt.Sprintf("%s.%s.wg.%s", region.Name, wgDomain, r.Env.WgDomain),
 					Ips: func() []string {
 
 						// fmt.Println(ipsAny)
@@ -869,104 +868,6 @@ func (r *AccountReconciler) reconCoredns(req *rApi.Request[*managementv1.Account
 
 func (r *AccountReconciler) finalize(req *rApi.Request[*managementv1.Account]) stepResult.Result {
 	return req.Finalize()
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Logger) error {
-	r.Client = mgr.GetClient()
-	r.Scheme = mgr.GetScheme()
-	r.logger = logger.WithName(r.Name)
-
-	builder := ctrl.NewControllerManagedBy(mgr).
-		For(&managementv1.Account{}).
-		Owns(&corev1.Namespace{}).
-		Owns(&corev1.Service{}).
-		Owns(&appsv1.Deployment{})
-
-	builder.Watches(
-		&source.Kind{Type: &managementv1.Device{}}, handler.EnqueueRequestsFromMapFunc(
-			func(object client.Object) []reconcile.Request {
-				if object.GetLabels() == nil {
-					return nil
-				}
-				account, ok := object.GetLabels()["kloudlite.io/account-ref"]
-				if !ok {
-					return nil
-				}
-				return []reconcile.Request{
-					{
-						NamespacedName: types.NamespacedName{
-							Name: account,
-						},
-					},
-				}
-			},
-		),
-	)
-
-	builder.Watches(
-		&source.Kind{Type: &managementv1.Region{}}, handler.EnqueueRequestsFromMapFunc(
-			func(object client.Object) []reconcile.Request {
-
-				if object.GetLabels() == nil {
-					return nil
-				}
-
-				l := object.GetLabels()
-				accountId := l["kloudlite.io/account-ref"]
-
-				var accounts managementv1.AccountList
-				results := []reconcile.Request{}
-				ctx := context.TODO()
-
-				if accountId == "" {
-					err := r.Client.List(
-						ctx, &accounts, &client.ListOptions{
-							LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{}),
-						},
-					)
-					if err != nil {
-						return nil
-					}
-
-					for _, account := range accounts.Items {
-						results = append(
-							results, reconcile.Request{
-								NamespacedName: types.NamespacedName{
-									Name: account.Name,
-								},
-							},
-						)
-					}
-				} else {
-
-					account, err := rApi.Get(
-						ctx, r.Client,
-						types.NamespacedName{
-							Name: accountId,
-						}, &managementv1.Account{},
-					)
-					if err != nil {
-						return nil
-					}
-
-					results = append(
-						results, reconcile.Request{
-							NamespacedName: types.NamespacedName{
-								Name: account.Name,
-							},
-						},
-					)
-				}
-				if len(results) == 0 {
-					return nil
-				}
-
-				return results
-			},
-		),
-	)
-	return builder.Complete(r)
 }
 
 // generating device proxy config and updating services
@@ -1221,4 +1122,102 @@ func getRemoteDeviceIp(deviceOffcet int64) (*ipaddr.IPAddressString, error) {
 	} else {
 		return nil, addressError
 	}
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Logger) error {
+	r.Client = mgr.GetClient()
+	r.Scheme = mgr.GetScheme()
+	r.logger = logger.WithName(r.Name)
+
+	builder := ctrl.NewControllerManagedBy(mgr).
+		For(&managementv1.Account{}).
+		Owns(&corev1.Namespace{}).
+		Owns(&corev1.Service{}).
+		Owns(&appsv1.Deployment{})
+
+	builder.Watches(
+		&source.Kind{Type: &managementv1.Device{}}, handler.EnqueueRequestsFromMapFunc(
+			func(object client.Object) []reconcile.Request {
+				if object.GetLabels() == nil {
+					return nil
+				}
+				account, ok := object.GetLabels()["kloudlite.io/account-ref"]
+				if !ok {
+					return nil
+				}
+				return []reconcile.Request{
+					{
+						NamespacedName: types.NamespacedName{
+							Name: account,
+						},
+					},
+				}
+			},
+		),
+	)
+
+	builder.Watches(
+		&source.Kind{Type: &managementv1.Region{}}, handler.EnqueueRequestsFromMapFunc(
+			func(object client.Object) []reconcile.Request {
+
+				if object.GetLabels() == nil {
+					return nil
+				}
+
+				l := object.GetLabels()
+				accountId := l["kloudlite.io/account-ref"]
+
+				var accounts managementv1.AccountList
+				results := []reconcile.Request{}
+				ctx := context.TODO()
+
+				if accountId == "" {
+					err := r.Client.List(
+						ctx, &accounts, &client.ListOptions{
+							LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{}),
+						},
+					)
+					if err != nil {
+						return nil
+					}
+
+					for _, account := range accounts.Items {
+						results = append(
+							results, reconcile.Request{
+								NamespacedName: types.NamespacedName{
+									Name: account.Name,
+								},
+							},
+						)
+					}
+				} else {
+
+					account, err := rApi.Get(
+						ctx, r.Client,
+						types.NamespacedName{
+							Name: accountId,
+						}, &managementv1.Account{},
+					)
+					if err != nil {
+						return nil
+					}
+
+					results = append(
+						results, reconcile.Request{
+							NamespacedName: types.NamespacedName{
+								Name: account.Name,
+							},
+						},
+					)
+				}
+				if len(results) == 0 {
+					return nil
+				}
+
+				return results
+			},
+		),
+	)
+	return builder.Complete(r)
 }

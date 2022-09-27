@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"k8s.io/client-go/rest"
+	"operators.kloudlite.io/env"
 	"operators.kloudlite.io/lib/logging"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -71,6 +72,8 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	envVars := env.GetEnvOrDie()
+
 	var mgr manager.Manager
 	if isDev {
 		mr, err := ctrl.NewManager(
@@ -119,8 +122,7 @@ func main() {
 		logger := logging.NewOrDie(&logging.Options{Dev: true})
 
 		if err := (&account.AccountReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Env: envVars,
 		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
 			os.Exit(1)
@@ -129,17 +131,15 @@ func main() {
 		// return
 
 		if err := (&commoncontroller.DomainReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr); err != nil {
+			Env: envVars,
+		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
 			os.Exit(1)
 		}
 
 		if err := (&commoncontroller.RegionReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr); err != nil {
+			Env: envVars,
+		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Region")
 			os.Exit(1)
 		}
@@ -160,10 +160,7 @@ func main() {
 
 		logger := logging.NewOrDie(&logging.Options{Dev: true})
 
-		if err := (&infracontrollers.NodePoolReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr, logger); err != nil {
+		if err := (&infracontrollers.NodePoolReconciler{}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NodePool")
 			os.Exit(1)
 		}
@@ -178,7 +175,7 @@ func main() {
 		if err := (&infracontrollers.EdgeReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr); err != nil {
+		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "AccountProvider")
 			os.Exit(1)
 		}

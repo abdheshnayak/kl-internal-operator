@@ -137,11 +137,27 @@ func GetTotalResource(labels map[string]string) (*Res, error) {
 		}
 
 		if strings.TrimSpace(r.Cpu) != "" {
-			if cpu, e := strconv.ParseInt(r.Cpu, 10, 32); e != nil {
-				return nil, e
+			var cpu int64
+			var e error
+			c := strings.ReplaceAll(r.Cpu, "m", "")
+			if c != r.Cpu {
+
+				if cpu, e = strconv.ParseInt(c, 10, 32); e != nil {
+					return nil, e
+				} else {
+					totalCPU += int(cpu)
+				}
+
 			} else {
-				totalCPU += int(cpu)
+
+				if cpu, e = strconv.ParseInt(c, 10, 32); e != nil {
+					return nil, e
+				} else {
+					totalCPU += int(cpu) * 1000
+				}
+
 			}
+
 		}
 
 	}

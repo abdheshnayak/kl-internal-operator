@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	// "k8s.io/apimachinery/pkg/types"
 	"operators.kloudlite.io/lib/conditions"
 	"operators.kloudlite.io/lib/functions"
 	rApi "operators.kloudlite.io/lib/operator"
@@ -25,8 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	"sigs.k8s.io/yaml"
 
-	// corev1 "k8s.io/api/core/v1"
-	// apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
@@ -69,8 +66,6 @@ func (r *AccountNodeReconciler) Reconcile(ctx context.Context, oReq ctrl.Request
 
 	req.Logger.Info("##################### NEW RECONCILATION------------------")
 
-	// fmt.Printf("reconcile: %+v\n", req.Object)
-
 	if req == nil {
 		return ctrl.Result{}, nil
 	}
@@ -110,15 +105,6 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 
 	var cs []metav1.Condition
 
-	// ensure creation job deleted
-	if err := func() error {
-		functions.ExecCmd(fmt.Sprintf("kubectl delete -n %s job/%s", JOB_NS, req.Object.Name), "")
-
-		return nil
-	}(); err != nil {
-		return req.FailWithStatusError(err)
-	}
-
 	// check if deletion job created, if created and completed remove finalizers
 	if err, done := func() (error, bool) {
 
@@ -137,7 +123,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 					"DeleteJobFound",
 					false,
 					"NotFound",
-					"JoinSecret not found to attach",
+					"Delete Job not created yet",
 				))
 			return nil, false
 		}
@@ -235,6 +221,14 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 	// if deletion job not created create it
 	if err := func() error {
 
+		if _, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
+			Name: fmt.Sprintf("kl-byoc-%s", req.Object.Name),
+		}, &corev1.Node{}); err != nil {
+			if !apiErrors.IsNotFound(err) {
+				return err
+			}
+		}
+
 		if !meta.IsStatusConditionFalse(cs, "DeleteJobFound") {
 			return nil
 		}
@@ -247,17 +241,14 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 		klConfig := doKLConf{
 			Version: "v1",
 			Values: doKLConfValues{
-				ServerUrl:   "not_required_to_delete",
-				SshKeyPath:  os.Getenv("SSH_KEY_PATH"),
 				StorePath:   os.Getenv("STORE_PATH"),
 				TfTemplates: os.Getenv("TF_TEMPLATES_PATH"),
-				JoinToken:   "not_required_to_delete",
+				Secrets:     "not_required_to_delete",
 			},
 		}
 
 		// if any of the environment not provided panic
-		if klConfig.Values.SshKeyPath == "" ||
-			klConfig.Values.StorePath == "" ||
+		if klConfig.Values.StorePath == "" ||
 			klConfig.Values.TfTemplates == "" {
 			return fmt.Errorf("no all environments available to delete job")
 
@@ -348,7 +339,6 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 						Region:       req.Object.Spec.Region,
 						InstanceType: awsNodeConfig.InstanceType,
 						VPC:          awsNodeConfig.VPC,
-						AMI:          awsNodeConfig.AMI,
 					},
 				},
 			}
@@ -382,7 +372,7 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 		// fmt.Println(string(b))
 
 		if _, err = functions.KubectlApplyExec(b); err != nil {
-			fmt.Println(err)
+			// fmt.Println(err)
 			return err
 		}
 
@@ -411,12 +401,12 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 	isReady := true
 	// retry := false
 
-	// finding Join Token
+	// finding Cluster Secret
 	if err := func() error {
 		secret, err := rApi.Get(req.Context(),
 			r.Client,
 			types.NamespacedName{
-				Name:      "join-token",
+				Name:      "cluster-secret",
 				Namespace: TOKEN_NS,
 			},
 			&corev1.Secret{},
@@ -432,48 +422,33 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 
 			cs = append(cs,
 				conditions.New(
-					"JoinSecretFound",
+					"ClusterSecretFound",
 					false,
 					"NotFound",
-					"JoinSecret not found to attach",
+					"Clsuter Secret not found to attach",
 				),
 			)
 
 			return nil
 		}
 
-		joinToken := secret.Data["join-token"]
-		if string(joinToken) == "" {
+		clusterSecret := secret.Data["secrets.yml"]
+
+		if string(clusterSecret) == "" {
 			isReady = false
 
 			cs = append(cs,
 				conditions.New(
-					"JoinTokenFound",
+					"ClsutercSecretFound",
 					false,
 					"NotFound",
-					"JoinSecret not found to attach",
+					"ClusterSecret not found to Create and Attach",
 				),
 			)
 			return nil
 		}
 
-		serverUrl := secret.Data["serverUrl"]
-		if string(serverUrl) == "" {
-			isReady = false
-
-			cs = append(cs,
-				conditions.New(
-					"ServerUrlFound",
-					false,
-					"NotFound",
-					"ServerUrl not found to attach",
-				),
-			)
-			return nil
-		}
-
-		rApi.SetLocal(req, "join-token", string(joinToken))
-		rApi.SetLocal(req, "serverUrl", string(serverUrl))
+		rApi.SetLocal(req, "cluster-secret", string(clusterSecret))
 		return nil
 	}(); err != nil {
 		return req.FailWithStatusError(err)
@@ -618,6 +593,8 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			&batchv1.Job{},
 		)
 
+		// fmt.Println(job)
+
 		if err != nil {
 
 			if !apiErrors.IsNotFound(err) {
@@ -645,8 +622,6 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 		for _, jc := range job.Status.Conditions {
 			if jc.Type == "Complete" && jc.Status == "True" {
 				functions.ExecCmd(fmt.Sprintf("kubectl delete -n %s job/%s", JOB_NS, req.Object.Name), "")
-				// functions.KubectlDelete("kl-core",
-				// 	fmt.Sprintf("job/%s", req.Object.Name))
 			}
 		}
 
@@ -709,8 +684,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 				return err
 			}
 
-			if awsNodeConfig.InstanceType == "" ||
-				awsNodeConfig.AMI == "" {
+			if awsNodeConfig.InstanceType == "" {
 				isReady = false
 
 				cs = append(cs,
@@ -766,14 +740,9 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 		}
 		fmt.Println("nither node found nor job created")
 
-		joinToken, ok := rApi.GetLocal[string](req, "join-token")
+		clusterSecret, ok := rApi.GetLocal[string](req, "cluster-secret")
 		if !ok {
-			return fmt.Errorf("join token not found")
-		}
-
-		serverUrl, ok := rApi.GetLocal[string](req, "serverUrl")
-		if !ok {
-			return fmt.Errorf("serverUrl not found")
+			return fmt.Errorf("cluster secret not found")
 		}
 
 		secret, ok := rApi.GetLocal[*corev1.Secret](req, "secret")
@@ -781,23 +750,20 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 			return fmt.Errorf("can't fetch secret from local")
 		}
 
+		base64Secret := base64.StdEncoding.EncodeToString([]byte(clusterSecret))
+
 		klConfig := doKLConf{
 			Version: "v1",
 			Values: doKLConfValues{
-				ServerUrl:   serverUrl,
-				SshKeyPath:  os.Getenv("SSH_KEY_PATH"),
 				StorePath:   os.Getenv("STORE_PATH"),
 				TfTemplates: os.Getenv("TF_TEMPLATES_PATH"),
-				JoinToken:   joinToken,
+				Secrets:     base64Secret,
 			},
 		}
 
 		// if any of the environment not provided panic
-		if klConfig.Values.ServerUrl == "" ||
-			klConfig.Values.SshKeyPath == "" ||
-			klConfig.Values.StorePath == "" ||
-			klConfig.Values.TfTemplates == "" ||
-			klConfig.Values.JoinToken == "" {
+		if klConfig.Values.StorePath == "" ||
+			klConfig.Values.TfTemplates == "" {
 			return fmt.Errorf("no all environments available to create job")
 		}
 
@@ -896,7 +862,6 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 						Region:       req.Object.Spec.Region,
 						InstanceType: awsNodeConfig.InstanceType,
 						VPC:          awsNodeConfig.VPC,
-						AMI:          awsNodeConfig.AMI,
 					},
 				},
 			}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"sort"
 	"time"
 
@@ -15,191 +14,169 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	managementv1 "operators.kloudlite.io/apis/management/v1"
+	"operators.kloudlite.io/env"
 
 	"operators.kloudlite.io/lib/constants"
+	"operators.kloudlite.io/lib/logging"
 	"operators.kloudlite.io/lib/nameserver"
-	rApi "operators.kloudlite.io/lib/operator"
+
+	rApi "operators.kloudlite.io/lib/operator.v2"
+	stepResult "operators.kloudlite.io/lib/operator.v2/step-result"
 )
 
 // DomainReconciler reconciles a Domain object
 type DomainReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	logger logging.Logger
+	Name   string
+	Env    *env.Env
 }
+
+const (
+	ReconcilationPeriod time.Duration = 30
+)
+
+const (
+	RecoardUpToDate string = "record-up-to-date"
+)
 
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=domains,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=domains/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=domains/finalizers,verbs=update
 
-func (r *DomainReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
+func (r *DomainReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
+	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &managementv1.Domain{})
+	if err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
-	req := rApi.NewRequest(ctx, r.Client, oReq.NamespacedName, &managementv1.Domain{})
-
-	if req == nil {
-		return ctrl.Result{}, nil
+	if step := req.EnsureChecks(RecoardUpToDate); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
 	if req.Object.GetDeletionTimestamp() != nil {
 		if x := r.finalize(req); !x.ShouldProceed() {
-			return x.Result(), x.Err()
+			return x.ReconcilerResponse()
 		}
+		return ctrl.Result{}, nil
 	}
 
-	if x := req.EnsureFinilizer(constants.CommonFinalizer); !x.ShouldProceed() {
-		// fmt.Println("EnsureFinilizer", x.Err())
-		return x.Result(), x.Err()
+	req.Logger.Infof("NEW RECONCILATION")
+
+	if step := req.ClearStatusIfAnnotated(); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
-	req.Logger.Info("-------------------- NEW RECONCILATION------------------")
-
-	if x := req.EnsureLabels(); !x.ShouldProceed() {
-		return x.Result(), x.Err()
+	if step := req.RestartIfAnnotated(); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
-	if x := r.reconcileStatus(req); !x.ShouldProceed() {
-		return x.Result(), x.Err()
+	if step := req.EnsureLabelsAndAnnotations(); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
-	if x := r.reconcileOperations(req); !x.ShouldProceed() {
-		return x.Result(), x.Err()
+	if step := req.EnsureFinalizers(constants.ForegroundFinalizer, constants.CommonFinalizer); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
 	}
 
-	return ctrl.Result{}, nil
+	if step := r.reconUpdateRecord(req); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
 
+	req.Object.Status.IsReady = true
+	req.Logger.Infof("RECONCILATION COMPLETE")
+	return ctrl.Result{RequeueAfter: ReconcilationPeriod * time.Second}, r.Status().Update(ctx, req.Object)
 }
 
-func (r *DomainReconciler) finalize(req *rApi.Request[*managementv1.Domain]) rApi.StepResult {
+func (r *DomainReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Domain]) stepResult.Result {
+	obj, checks := req.Object, req.Object.Status.Checks
+	check := rApi.Check{Generation: obj.Generation}
 
-	fmt.Println("finalize")
+	if _, ok := req.Object.GetLabels()["kloudlite.io/wg-domain"]; !ok {
+		return req.CheckFailed(RecoardUpToDate, check, "wg-domain not provided in labels of")
+	}
 
-	// deleting domain record
-	if err := func() error {
-		endpoint := os.Getenv("NAMESERVER_ENDPOINT")
+	res, err := http.Get(fmt.Sprintf("%s/get-records/%s", r.Env.NameserverEndpoint, req.Object.Spec.Name))
 
-		if endpoint == "" {
-			return fmt.Errorf("NAMESERVER_ENDPOINT not found in environment")
+	if err != nil {
+		return req.CheckFailed(RecoardUpToDate, check, err.Error())
+	}
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return req.CheckFailed(RecoardUpToDate, check, err.Error())
+	}
+
+	var ips struct {
+		Answers []string `json:"answers"`
+	}
+
+	if err = json.Unmarshal(body, &ips); err != nil {
+		fmt.Println("cant find parse the ips from the response of nameserver")
+	}
+
+	c_ips := ips.Answers
+
+	sort.Slice(
+		c_ips, func(i, j int) bool {
+			return c_ips[i] > c_ips[j]
+		},
+	)
+
+	sort.Slice(
+		req.Object.Spec.Ips, func(i, j int) bool {
+			return req.Object.Spec.Ips[i] > req.Object.Spec.Ips[j]
+		},
+	)
+
+	notMatched := false
+
+	for i, v := range req.Object.Spec.Ips {
+		if len(c_ips) <= i {
+			notMatched = true
+			break
+		}
+		if v != c_ips[i] {
+			notMatched = true
+			break
+		}
+	}
+
+	if notMatched {
+
+		dns := nameserver.NewClient(r.Env.NameserverEndpoint)
+
+		if err = dns.UpsertDomain(req.Object.Spec.Name, req.Object.Spec.Ips); err != nil {
+			return req.CheckFailed(RecoardUpToDate, check, err.Error())
 		}
 
-		dns := nameserver.NewClient(endpoint)
+	}
 
-		err := dns.DeleteDomain(req.Object.Spec.Name)
+	check.Status = true
+	if check != checks[RecoardUpToDate] {
+		checks[RecoardUpToDate] = check
+		return req.UpdateStatus()
+	}
 
-		return err
+	return req.Next()
+}
 
-	}(); err != nil {
+func (r *DomainReconciler) finalize(req *rApi.Request[*managementv1.Domain]) stepResult.Result {
+
+	dns := nameserver.NewClient(r.Env.NameserverEndpoint)
+	if err := dns.DeleteDomain(req.Object.Spec.Name); err != nil {
 		return req.FailWithStatusError(err)
 	}
 
 	return req.Finalize()
 }
 
-// domain management
-func (r *DomainReconciler) reconcileStatus(req *rApi.Request[*managementv1.Domain]) rApi.StepResult {
-	fmt.Println("DOMAIN RECONCILATION------------------")
-
-	isReady := true
-
-	// check if record present
-	if err, notMatched := func() (error, bool) {
-
-		endpoint := os.Getenv("NAMESERVER_ENDPOINT")
-
-		if endpoint == "" {
-			return fmt.Errorf("NAMESERVER_ENDPOINT not found in environment"), false
-		}
-
-		labels := req.Object.GetLabels()
-
-		if labels == nil || labels["kloudlite.io/wg-domain"] == "" {
-			return nil, false
-		}
-
-		res, err := http.Get(fmt.Sprintf("%s/get-records/%s", endpoint, req.Object.Spec.Name))
-
-		if err != nil {
-			return err, false
-		}
-
-		body, err := ioutil.ReadAll(res.Body)
-
-		if err != nil {
-			return err, false
-		}
-
-		var ips struct {
-			Answers []string `json:"answers"`
-		}
-
-		if err = json.Unmarshal(body, &ips); err != nil {
-			fmt.Println("cant find parse the ips from the response of nameserver")
-		}
-
-		// if len(ips.Answers) == 0 {
-		// 	return err
-		// }
-
-		c_ips := ips.Answers
-
-		sort.Slice(
-			c_ips, func(i, j int) bool {
-				return c_ips[i] > c_ips[j]
-			},
-		)
-
-		sort.Slice(
-			req.Object.Spec.Ips, func(i, j int) bool {
-				return req.Object.Spec.Ips[i] > req.Object.Spec.Ips[j]
-			},
-		)
-
-		notMatched := false
-
-		for i, v := range req.Object.Spec.Ips {
-			if len(c_ips) <= i {
-				notMatched = true
-				break
-			}
-			if v != c_ips[i] {
-				notMatched = true
-				break
-			}
-		}
-
-		dns := nameserver.NewClient(endpoint)
-
-		if err = dns.UpsertDomain(req.Object.Spec.Name, req.Object.Spec.Ips); err != nil {
-			return err, notMatched
-		}
-
-		return nil, notMatched
-	}(); err != nil {
-		req.FailWithStatusError(err)
-	} else if notMatched {
-		fmt.Println("Domain IPS not updated on server")
-		return req.Done(&ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5})
-	}
-
-	if req.Object.Status.IsReady != isReady {
-
-		req.Object.Status.IsReady = isReady
-
-		if err := r.Status().Update(req.Context(), req.Object); err != nil {
-			return req.FailWithStatusError(err)
-		}
-
-	}
-
-	return req.Done()
-}
-
-func (r *DomainReconciler) reconcileOperations(req *rApi.Request[*managementv1.Domain]) rApi.StepResult {
-	return req.Done()
-}
-
 // SetupWithManager sets up the controller with the Manager.
-func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Logger) error {
 	r.Client = mgr.GetClient()
 	r.Scheme = mgr.GetScheme()
+	r.logger = logger.WithName(r.Name)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&managementv1.Domain{}).
 		Complete(r)

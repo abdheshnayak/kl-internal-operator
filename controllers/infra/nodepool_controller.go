@@ -243,6 +243,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		}
 	}
 
+	check.Status = true
 	if check != checks[AccountNodesReady] {
 		checks[AccountNodesReady] = check
 		return req.UpdateStatus()
