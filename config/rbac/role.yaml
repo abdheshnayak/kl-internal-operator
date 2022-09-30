@@ -6,32 +6,6 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - device-cluster.kloudlite.io
-  resources:
-  - bridgers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - device-cluster.kloudlite.io
-  resources:
-  - bridgers/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - device-cluster.kloudlite.io
-  resources:
-  - bridgers/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - infra.kloudlite.io
   resources:
   - accountnodes

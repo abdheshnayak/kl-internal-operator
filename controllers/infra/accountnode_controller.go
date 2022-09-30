@@ -47,15 +47,6 @@ const (
 //+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the AccountNode object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *AccountNodeReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
 
 	req := rApi.NewRequest(ctx, r.Client, oReq.NamespacedName, &infrav1.AccountNode{})
@@ -77,7 +68,6 @@ func (r *AccountNodeReconciler) Reconcile(ctx context.Context, oReq ctrl.Request
 	}
 
 	if x := req.EnsureLabels(); !x.ShouldProceed() {
-		// fmt.Println(x.Err())
 		return x.Result(), x.Err()
 	}
 
@@ -621,7 +611,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 
 		for _, jc := range job.Status.Conditions {
 			if jc.Type == "Complete" && jc.Status == "True" {
-				functions.ExecCmd(fmt.Sprintf("kubectl delete -n %s job/%s", JOB_NS, req.Object.Name), "")
+				functions.ExecCmd(fmt.Sprintf("kubectl delete -n %s job/%s --grace-period=0 --force", JOB_NS, req.Object.Name), "")
 			}
 		}
 

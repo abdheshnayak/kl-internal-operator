@@ -188,46 +188,33 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		Used:             totalUsedRes.Memory,
 	}
 
-	action, _, err := i.Calculate()
+	action, msg, err := i.Calculate()
 	if err != nil {
 		return req.CheckFailed(AccountNodesReady, check, err.Error())
 	}
 
-	switch action {
-	case 1:
-		{
-			if err := r.Client.Create(
-				ctx, &infrav1.AccountNode{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: string(uuid.NewUUID()),
-						Labels: apiLabels.Set{
-							constants.NodePoolKey: req.Object.Name,
-						},
-						OwnerReferences: []metav1.OwnerReference{functions.AsOwner(obj, true)},
-					},
-					Spec: infrav1.AccountNodeSpec{
-						AccountRef: obj.Spec.AccountRef,
-						EdgeRef:    obj.Spec.EdgeRef,
-						Provider:   obj.Spec.Provider,
-						Config:     obj.Spec.Config,
-						Region:     obj.Spec.Region,
-						Pool:       obj.Name,
-					},
-				},
-			); err != nil {
-				return req.CheckFailed(AccountNodesReady, check, err.Error())
-			}
-			return req.Done()
-		}
+	r.logger.Infof("\n\n\n%d: %s (%s)\n\n\n", action, msg, req.Object.Name)
 
-	case -1:
-		{
-			if len(accountNodes.Items) > 0 {
-				if err := r.Delete(
+	if true {
+		switch action {
+		case 1:
+			{
+				if err := r.Client.Create(
 					ctx, &infrav1.AccountNode{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      accountNodes.Items[0].Name,
-							Namespace: accountNodes.Items[0].Namespace,
+							Name: string(uuid.NewUUID()),
+							Labels: apiLabels.Set{
+								constants.NodePoolKey: req.Object.Name,
+							},
+							OwnerReferences: []metav1.OwnerReference{functions.AsOwner(obj, true)},
+						},
+						Spec: infrav1.AccountNodeSpec{
+							AccountRef: obj.Spec.AccountRef,
+							EdgeRef:    obj.Spec.EdgeRef,
+							Provider:   obj.Spec.Provider,
+							Config:     obj.Spec.Config,
+							Region:     obj.Spec.Region,
+							Pool:       obj.Name,
 						},
 					},
 				); err != nil {
@@ -235,11 +222,28 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 				}
 				return req.Done()
 			}
-		}
-	case 0:
-		{
-			req.Logger.Infof("accountNodes in sync...")
-			check.Status = true
+
+		case -1:
+			{
+				if len(accountNodes.Items) > 0 {
+					if err := r.Delete(
+						ctx, &infrav1.AccountNode{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      accountNodes.Items[0].Name,
+								Namespace: accountNodes.Items[0].Namespace,
+							},
+						},
+					); err != nil {
+						return req.CheckFailed(AccountNodesReady, check, err.Error())
+					}
+					return req.Done()
+				}
+			}
+		case 0:
+			{
+				req.Logger.Infof("accountNodes in sync...")
+				check.Status = true
+			}
 		}
 	}
 

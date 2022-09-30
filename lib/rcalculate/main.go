@@ -31,8 +31,21 @@ type Input struct {
 // return action, message, error
 // action 1 -> add, 0 -> leave, -1 -> delete one
 func (i *Input) Calculate() (int, string, error) {
+
+	// any of the above case not matched
+	fmt.Println("..........................................................................")
+	fmt.Println("##### STATUS 😇 #####")
+	fmt.Println("min", i.MinNode)
+	fmt.Println("max", i.MaxNode)
+	fmt.Println("NodeCount", i.CurrentNodeCount)
+	fmt.Println("TotalCapacity", i.TotalCapacity)
+	fmt.Println("CurrentUsage", i.Used)
+	fmt.Println("NodeSize", i.nodeSize)
+
+	defer fmt.Println("..........................................................................")
+
 	// theresold is for testing it's value can be updated according to best fit
-	theresold := 100
+	theresold := 900
 
 	// calculating nodeSize ( dynamic nodeSize alog will be used later )
 	if i.TotalCapacity != 0 && i.CurrentNodeCount != 0 {
@@ -80,15 +93,8 @@ func (i *Input) Calculate() (int, string, error) {
 	}
 
 	// any of the above case not matched
-	fmt.Println()
+	fmt.Println("..........................................................................")
 	fmt.Println("##### may be no change needed 😇 #####")
-	fmt.Println("min", i.MinNode)
-	fmt.Println("max", i.MaxNode)
-	fmt.Println("NodeCount", i.CurrentNodeCount)
-	fmt.Println("TotalCapacity", i.TotalCapacity)
-	fmt.Println("CurrentUsage", i.Used)
-	fmt.Println("NodeSize", i.nodeSize)
-	fmt.Println()
 
 	return 0, "we can't process this type of combination, may be it's already in shape or our algo can't handle it", nil
 }
