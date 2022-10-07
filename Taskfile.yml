@@ -22,8 +22,8 @@ tasks:
 
   run:
     env:
-      COMM: false
-      INFRA: true
+      COMM: true
+      INFRA: false
       NAMESERVER_ENDPOINT: http://dns-api.kl-core.svc.cluster.local
       WG_DOMAIN: kloudlite.io
       SSH_KEY_PATH: /home/nonroot/ssh
@@ -45,7 +45,7 @@ tasks:
     vars:
       Name: kloudlite-internal-operator
     env:
-      IMG: harbor.dev.madhouselabs.io/kloudlite/{{.EnvName}}/{{.Name}}:{{.Tag}}
+      IMG: registry.kloudlite.io/kloudlite/{{.EnvName}}/{{.Name}}:{{.Tag}}
       # NAMESPACE: kl-core
     preconditions:
       - sh: test -n '{{.Tag}}'
@@ -58,7 +58,7 @@ tasks:
   gen-yamls:
     vars:
       Name: kloudlite-internal-operator
-      Image: harbor.dev.madhouselabs.io/kloudlite/{{.EnvName}}/{{.Name}}:{{.Tag}}
+      Image: registry.kloudlite.io/kloudlite/{{.EnvName}}/{{.Name}}:{{.Tag}}
       Namespace: kl-core
     preconditions:
       - sh: test -n '{{.Tag}}'

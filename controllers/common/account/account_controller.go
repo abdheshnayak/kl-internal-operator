@@ -647,12 +647,15 @@ func (r *AccountReconciler) updateDeployment(req *rApi.Request[*managementv1.Acc
 					return err
 				}
 			}
+
+			// fmt.Println(deployments, activeRegions, r2.Name, ".............................")
 			continue
 		}
 
 		if deployments[name(r2.Name)] {
 			continue
 		}
+
 		if b, err := templates.Parse(
 			templates.WGDeploy, map[string]any{
 				"obj":               req.Object,
@@ -1199,6 +1202,7 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Lo
 							Name: accountId,
 						}, &managementv1.Account{},
 					)
+
 					if err != nil {
 						return nil
 					}

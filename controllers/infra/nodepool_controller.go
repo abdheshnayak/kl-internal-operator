@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -162,13 +163,26 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		}
 	}
 
-	totalAvailableRes, err := kresource.GetTotalResource(
-		map[string]string{
-			constants.NodePoolKey: req.Object.Name,
-		},
-	)
-	if err != nil {
-		return req.CheckFailed(AccountNodesReady, check, err.Error())
+	// totalAvailableRes, err := kresource.GetTotalResource(
+	// 	map[string]string{
+	// 		constants.NodePoolKey: req.Object.Name,
+	// 	},
+	// )
+	// if err != nil {
+	// 	return req.CheckFailed(AccountNodesReady, check, err.Error())
+	// }
+
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, &client.ListOptions{
+		LabelSelector: apiLabels.SelectorFromValidatedSet(
+			apiLabels.Set{
+				constants.NodePoolKey: req.Object.Name,
+			},
+		),
+	}); err != nil {
+		if !apiErrors.IsNotFound(err) {
+			return req.CheckFailed(AccountNodesReady, check, err.Error())
+		}
 	}
 
 	totalUsedRes, err := kresource.GetTotalPodRequest(
@@ -180,12 +194,36 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		return req.CheckFailed(AccountNodesReady, check, err.Error())
 	}
 
+	totalStatefulUsedRes, err := kresource.GetTotalPodRequest(
+		map[string]string{
+			constants.NodePoolKey:        obj.Name,
+			"kloudlite.io/stateful-node": "true",
+		}, "requests",
+	)
+	if err != nil {
+		return req.CheckFailed(AccountNodesReady, check, err.Error())
+	}
+
 	i := rcalculate.Input{
-		MinNode:          obj.Spec.Min,
-		MaxNode:          obj.Spec.Max,
-		CurrentNodeCount: len(accountNodes.Items),
-		TotalCapacity:    totalAvailableRes.Memory,
-		Used:             totalUsedRes.Memory,
+		MinNode: obj.Spec.Min,
+		MaxNode: obj.Spec.Max,
+		Nodes: func() []rcalculate.Node {
+			rk := make([]rcalculate.Node, 0)
+			for _, n := range nodes.Items {
+				rk = append(rk, rcalculate.Node{
+					Name:     n.Name,
+					Stateful: n.GetLabels()["kloudlite.io/stateful-node"] == "true",
+					Size: rcalculate.Size{
+						Memory: n.Status.Allocatable.Memory().String(),
+						Cpu:    n.Status.Allocatable.Cpu().String(),
+					},
+				})
+			}
+			return rk
+		}(),
+		StatefulUsed: totalStatefulUsedRes.Memory,
+		TotalUsed:    totalUsedRes.Memory,
+		Threshold:    80,
 	}
 
 	action, msg, err := i.Calculate()
@@ -193,11 +231,11 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		return req.CheckFailed(AccountNodesReady, check, err.Error())
 	}
 
-	r.logger.Infof("\n\n\n%d: %s (%s)\n\n\n", action, msg, req.Object.Name)
+	r.logger.Infof("\n\n\n%d: %s (%s)\n\n\n", action, *msg, req.Object.Name)
 
 	if true {
 		switch action {
-		case 1:
+		case rcalculate.ADD_NODE:
 			{
 				if err := r.Client.Create(
 					ctx, &infrav1.AccountNode{
@@ -215,6 +253,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 							Config:     obj.Spec.Config,
 							Region:     obj.Spec.Region,
 							Pool:       obj.Name,
+							Index:      len(nodes.Items),
 						},
 					},
 				); err != nil {
@@ -223,20 +262,41 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 				return req.Done()
 			}
 
-		case -1:
+		case rcalculate.DEL_NODE:
 			{
 				if len(accountNodes.Items) > 0 {
-					if err := r.Delete(
-						ctx, &infrav1.AccountNode{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      accountNodes.Items[0].Name,
-								Namespace: accountNodes.Items[0].Namespace,
-							},
-						},
-					); err != nil {
-						return req.CheckFailed(AccountNodesReady, check, err.Error())
+					for _, n := range accountNodes.Items {
+						if n.Spec.Index == len(accountNodes.Items)-1 {
+							if err := r.Delete(
+								ctx, &infrav1.AccountNode{
+									ObjectMeta: metav1.ObjectMeta{
+										Name: n.Name,
+										// Namespace: n.Namespace,
+									},
+								},
+							); err != nil {
+								return req.CheckFailed(AccountNodesReady, check, err.Error())
+							}
+							break
+						}
 					}
 					return req.Done()
+				}
+			}
+		case rcalculate.ADD_STATEFUL:
+			{
+				cnt := i.GetStatefulCount()
+				for _, n := range nodes.Items {
+					if n.GetLabels()["kloudlite.io/node-index"] == fmt.Sprint(cnt) {
+						ctrl.CreateOrUpdate(ctx, r.Client, &n, func() error {
+							l := n.GetLabels()
+							l["kloudlite.io/stateful-node"] = "true"
+							n.SetLabels(l)
+							return nil
+						})
+
+						break
+					}
 				}
 			}
 		case 0:

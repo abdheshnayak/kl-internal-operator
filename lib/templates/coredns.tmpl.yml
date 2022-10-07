@@ -13,7 +13,7 @@ data:
         health
         ready
 
-        forward . 10.43.0.10
+        forward . 10.96.0.10 
         cache 30
         loop
         reload

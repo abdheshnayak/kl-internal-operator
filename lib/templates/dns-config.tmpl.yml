@@ -1,4 +1,5 @@
 {{- $rewriteRules := get . "rewrite-rules"}}
+{{- $dnsIp := get . "dns-ip"}}
 {{- $devices := get . "devices"}}
 {{- $object := get . "object"}}
 
@@ -17,7 +18,7 @@ data:
 
         {{ $rewriteRules }}
 
-        forward . 10.43.0.10
+        forward . {{ $dnsIp }}
         cache 30
         loop
         reload

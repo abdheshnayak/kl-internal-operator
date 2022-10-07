@@ -604,8 +604,8 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 			wgNodePort, ok := account.Status.DisplayVars.GetString("wg-nodeport-" + region.Name)
 
 			if !ok {
-				fmt.Println(req.Object.Spec.Account, "wg-nodeport-"+region.Name)
-				fmt.Println("node port not available")
+				// fmt.Println(req.Object.Spec.Account, "wg-nodeport-"+region.Name)
+				// fmt.Println("node port not available")
 				continue
 			}
 
@@ -724,6 +724,15 @@ func (r *DeviceReconciler) reconcileOperations(req *rApi.Request[*managementv1.D
 
 		if err := func() error {
 
+			kubeDns, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
+				Name:      "kube-dns",
+				Namespace: "kube-system",
+			}, &corev1.Service{})
+
+			if err != nil {
+				return err
+			}
+
 			devices, ok := rApi.GetLocal[managementv1.DeviceList](req, "devices")
 
 			if !ok {
@@ -761,21 +770,22 @@ func (r *DeviceReconciler) reconcileOperations(req *rApi.Request[*managementv1.D
 					"object":        account,
 					"devices":       d,
 					"rewrite-rules": rewriteRules,
+					"dns-ip":        kubeDns.Spec.ClusterIP,
 				},
 			)
 
 			if err != nil {
 				return err
 			}
-			fmt.Println(string(parse))
+			// fmt.Println(string(parse))
 
-			op, err := functions.KubectlApplyExec(parse)
+			_, err = functions.KubectlApplyExec(parse)
 
 			if err != nil {
 				return err
 			}
 
-			fmt.Println(op)
+			// fmt.Println(op)
 			_, err = functions.Kubectl("-n", fmt.Sprintf("wg-%s", req.Object.Spec.Account), "rollout", "restart", "deployment/coredns")
 
 			if err != nil {
@@ -875,7 +885,7 @@ func (r *DeviceReconciler) reconcileOperations(req *rApi.Request[*managementv1.D
 		if err != nil {
 			return err
 		}
-		fmt.Println(string(b))
+		// fmt.Println(string(b))
 		_, err = functions.KubectlApplyExec(b)
 		if err != nil {
 			return err

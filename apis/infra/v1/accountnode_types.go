@@ -1,7 +1,10 @@
 package v1
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"operators.kloudlite.io/lib/constants"
 	rApi "operators.kloudlite.io/lib/operator"
 )
 
@@ -15,16 +18,19 @@ type AccountNodeSpec struct {
 
 	// Foo is an example field of AccountNode. Edit accountnode_types.go to remove/update
 	AccountRef string `json:"accountRef,omitempty"`
-	Region     string `json:"region,omitempty"`
-	EdgeRef    string `json:"providerRef,omitempty"`
-	Provider   string `json:"provider,omitempty"`
-	Config     string `json:"config,omitempty"`
-	Pool       string `json:"pool,omitempty"`
+	Region     string `json:"region"`
+	EdgeRef    string `json:"providerRef"`
+	Provider   string `json:"provider"`
+	Config     string `json:"config"`
+	Pool       string `json:"pool"`
+	// +kubebuilder:default=0
+	Index int `json:"nodeIndex,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
+//+kubebuilder:printcolumn:name="Index",type="integer",JSONPath=".spec.nodeIndex",description="index of node"
 
 // AccountNode is the Schema for the accountnodes API
 type AccountNode struct {
@@ -38,9 +44,10 @@ type AccountNode struct {
 func (a *AccountNode) GetEnsuredLabels() map[string]string {
 	return map[string]string{
 		"kloudlite.io/account-node.name": a.Name,
-		"kloudlite.io/account-ref":       a.Spec.AccountRef,
+		constants.AccountRef:             a.Spec.AccountRef,
 		"kloudlite.io/region":            a.Spec.EdgeRef,
-		"kloudlite.io/node-pool":         a.Spec.Pool,
+		constants.NodePoolKey:            a.Spec.Pool,
+		constants.NodeIndex:              fmt.Sprintf("%d", a.Spec.Index),
 	}
 }
 

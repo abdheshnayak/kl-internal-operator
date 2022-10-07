@@ -15,7 +15,12 @@ spec:
     singular: accountnode
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: index of node
+      jsonPath: .spec.nodeIndex
+      name: Index
+      type: integer
+    name: v1
     schema:
       openAPIV3Schema:
         description: AccountNode is the Schema for the accountnodes API
@@ -41,6 +46,9 @@ spec:
                 type: string
               config:
                 type: string
+              nodeIndex:
+                default: 0
+                type: integer
               pool:
                 type: string
               provider:
@@ -49,6 +57,12 @@ spec:
                 type: string
               region:
                 type: string
+            required:
+            - config
+            - pool
+            - provider
+            - providerRef
+            - region
             type: object
           status:
             properties:

@@ -9,10 +9,12 @@ import (
 	"strings"
 	"time"
 
+	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
 	"operators.kloudlite.io/lib/conditions"
+	"operators.kloudlite.io/lib/constants"
 	"operators.kloudlite.io/lib/functions"
 	rApi "operators.kloudlite.io/lib/operator"
 	"operators.kloudlite.io/lib/templates"
@@ -562,6 +564,10 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			return nil
 		}
 
+		// if _, err := functions.ExecCmd(fmt.Sprintf("kubectl taint nodes %s kloudlite.io/acc-edge-ref=%s:NoExecute --overwrite", node.Name, req.Object.Spec.EdgeRef), ""); err != nil {
+		// 	return err
+		// }
+
 		return nil
 	}(); err != nil {
 		return req.FailWithStatusError(err)
@@ -717,6 +723,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 }
 
 func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.AccountNode]) rApi.StepResult {
+	ctx := req.Context()
 
 	// if job not created create one
 	if err := func() error {
@@ -865,6 +872,23 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 		default:
 			return fmt.Errorf("unknown provider")
 		}
+
+		var nodes corev1.NodeList
+		if err = r.List(ctx, &nodes, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(
+				apiLabels.Set{
+					constants.NodePoolKey: req.Object.Name,
+				},
+			),
+		}); err != nil {
+			if !apiErrors.IsNotFound(err) {
+				return err
+			}
+		}
+
+		l := req.Object.GetEnsuredLabels()
+
+		l["kloudlite.io/node-index"] = fmt.Sprintf("%d", req.Object.Spec.Index)
 
 		b, err := templates.Parse(templates.CreateNode, map[string]any{
 			"name":       req.Object.Name,

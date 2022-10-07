@@ -64,6 +64,7 @@ const (
 	ClearStatusKey string = "kloudlite.io/clear-status"
 	RestartKey     string = "kloudlite.io/do-restart"
 	NodePoolKey    string = "kloudlite.io/node-pool"
+	NodeIndex      string = "kloudlite.io/node-index"
 	NodeIps        string = "kloudlite.io/node-ips"
 )
 

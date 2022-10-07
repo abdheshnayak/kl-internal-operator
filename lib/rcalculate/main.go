@@ -1,100 +1,355 @@
 package rcalculate
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
+
+const (
+	ADD_NODE     int = 1
+	DEL_NODE     int = -1
+	ADD_STATEFUL int = 2
+	DEL_STATEFUL int = -2
+	NEUTRAL      int = 0
+)
 
 func Test() {
 	i := Input{
-		MinNode:          0,
-		MaxNode:          8,
-		CurrentNodeCount: 3,
-		TotalCapacity:    3000,
-		Used:             2800,
-		// NodeSize:         1000,
-		// UpThreshold:   75,
-		// DownThreshold: 50,
+		MinNode: 0,
+		MaxNode: 8,
+		Nodes: []Node{
+			{
+				Name:     "sample",
+				Stateful: false,
+				index:    "0",
+				Size: Size{
+					Memory: "1Gb",
+					Cpu:    "100i",
+				},
+			},
+		},
+		TotalUsed: 0,
+		Threshold: 80,
 	}
 
 	fmt.Println(i.Calculate())
 }
 
+type Size struct {
+	Memory string
+	Cpu    string
+}
+
+func (s *Size) getCpu() (int, error) {
+	if strings.TrimSpace(s.Cpu) != "" {
+		var cpu int64
+		var e error
+		c := strings.ReplaceAll(s.Cpu, "m", "")
+		if c != s.Cpu {
+
+			if cpu, e = strconv.ParseInt(c, 10, 32); e != nil {
+				return 0, e
+			} else {
+				return int(cpu), nil
+			}
+
+		} else {
+
+			if cpu, e = strconv.ParseInt(c, 10, 32); e != nil {
+				return 0, e
+			} else {
+				return int(cpu) * 1000, nil
+			}
+
+		}
+
+	}
+
+	return 0, nil
+}
+
+func (s *Size) getMemory() (int, error) {
+	if strings.TrimSpace(s.Memory) != "" {
+		var memory int64
+		var e error
+		c := strings.ReplaceAll(s.Memory, "Ki", "")
+		if c != s.Memory {
+			if memory, e = strconv.ParseInt(c, 10, 32); e != nil {
+				return 0, e
+			} else {
+				return int(memory) / 1024, nil
+			}
+		}
+
+		c = strings.ReplaceAll(s.Memory, "Mi", "")
+		if c != s.Memory {
+			if memory, e = strconv.ParseInt(c, 10, 32); e != nil {
+				return 0, e
+			} else {
+				return int(memory), nil
+			}
+		}
+
+	} else {
+		return 0, nil
+	}
+
+	m := strings.ReplaceAll(s.Memory, "Mi", "")
+	m = strings.ReplaceAll(m, "Ki", "")
+	if strings.TrimSpace(m) != "" {
+		if memory, e := strconv.ParseInt(m, 10, 32); e != nil {
+			return 0, e
+		} else {
+			return int(memory), nil
+		}
+	}
+
+	return 0, nil
+}
+
+type Node struct {
+	Name     string
+	Stateful bool
+	index    string
+	Size     Size
+}
+
 type Input struct {
-	MinNode          int
-	MaxNode          int
-	CurrentNodeCount int
-	TotalCapacity    int
-	Used             int
-	nodeSize         int
-	// UpThreshold   int
-	// DownThreshold int
+	MinNode      int
+	MaxNode      int
+	Nodes        []Node
+	StatefulUsed int
+	TotalUsed    int
+	Threshold    int
+
+	statefulCount     int
+	statefulThreshold int
+
+	statefulAllocatable *IntSize
+	allocatable         int
+}
+
+type IntSize struct {
+	Cpu    int
+	Memory int
+}
+
+func (i *Input) GetStatefulCount() int {
+	if i.statefulCount != 0 {
+		return i.statefulCount
+	}
+	count := 0
+	for _, n := range i.Nodes {
+		if n.Stateful {
+			count++
+		}
+	}
+	i.statefulCount = count
+	return count
+}
+
+func (i *Input) getStatefulAllocatable() (*IntSize, error) {
+	if i.statefulAllocatable != nil {
+		return i.statefulAllocatable, nil
+	}
+	size := IntSize{
+		Cpu:    0,
+		Memory: 0,
+	}
+	for _, n := range i.Nodes {
+		if !n.Stateful {
+			continue
+		}
+
+		if cpu, err := n.Size.getCpu(); err != nil {
+			return nil, err
+		} else {
+			size.Cpu += cpu
+		}
+
+		if memory, err := n.Size.getMemory(); err != nil {
+			return nil, err
+		} else {
+			size.Memory += memory
+		}
+	}
+
+	i.statefulAllocatable = &size
+	return &size, nil
+}
+
+func (i *Input) getAllocatable() (*IntSize, error) {
+
+	size := IntSize{
+		Cpu:    0,
+		Memory: 0,
+	}
+	for _, n := range i.Nodes {
+		if cpu, err := n.Size.getCpu(); err != nil {
+			return nil, err
+		} else {
+			size.Cpu += cpu
+		}
+
+		if memory, err := n.Size.getMemory(); err != nil {
+			return nil, err
+		} else {
+			size.Memory += memory
+		}
+	}
+	return &size, nil
+}
+
+func (i *Input) getStatefulFilled() (int, error) {
+	if i.StatefulUsed == 0 {
+		return 0, nil
+	}
+
+	allocatable, err := i.getStatefulAllocatable()
+	if err != nil {
+		return 0, err
+	}
+
+	if allocatable.Memory == 0 && i.TotalUsed > 0 {
+		return 200, nil
+	} else if allocatable.Memory == 0 {
+		return 0, nil
+	}
+
+	threshold := i.StatefulUsed * 100 / allocatable.Memory
+
+	return threshold, nil
+}
+
+func (i *Input) getTotalFilled() (int, error) {
+	if i.TotalUsed == 0 {
+		return 0, nil
+	}
+
+	allocatable, err := i.getAllocatable()
+	if err != nil {
+		return 0, err
+	}
+	if allocatable.Memory == 0 && i.TotalUsed > 0 {
+		return 200, nil
+	} else if allocatable.Memory == 0 {
+		return 0, nil
+	}
+
+	threshold := i.TotalUsed * 100 / allocatable.Memory
+
+	return threshold, nil
+}
+
+func (i *Input) getPerCent(val, total int) int {
+	return val * 100 / total
+}
+
+func (i *Input) getFilledByAssumingLess() (int, error) {
+	if i.TotalUsed == 0 {
+		return 0, nil
+	}
+
+	allocatable, err := i.getAllocatable()
+	if err != nil {
+		return 0, err
+	}
+
+	s, err := i.Nodes[0].Size.getMemory()
+	if err != nil {
+		return 0, err
+	}
+	if (allocatable.Memory-s) == 0 && i.TotalUsed > 0 {
+		return 200, nil
+	}
+
+	threshold := i.TotalUsed * 100 / (allocatable.Memory - s)
+
+	return threshold, nil
 }
 
 // return action, message, error
 // action 1 -> add, 0 -> leave, -1 -> delete one
-func (i *Input) Calculate() (int, string, error) {
+// ( stateful ) action 2 -> tag stateful,  -2 -> untag one Stateful
+func (i *Input) Calculate() (int, *string, error) {
 
-	// any of the above case not matched
-	fmt.Println("..........................................................................")
-	fmt.Println("##### STATUS 😇 #####")
-	fmt.Println("min", i.MinNode)
-	fmt.Println("max", i.MaxNode)
-	fmt.Println("NodeCount", i.CurrentNodeCount)
-	fmt.Println("TotalCapacity", i.TotalCapacity)
-	fmt.Println("CurrentUsage", i.Used)
-	fmt.Println("NodeSize", i.nodeSize)
+	fmt.Println("..................................................")
+	fmt.Println("Total Used", i.TotalUsed)
+	fmt.Println("Stateful Used", i.StatefulUsed)
+	fmt.Println("Min Node", i.MinNode)
+	fmt.Println("Max Node", i.MaxNode)
+	fmt.Printf("Filled:")
+	fmt.Println(i.getTotalFilled())
+	fmt.Printf("If node delete filled:")
+	fmt.Println(i.getFilledByAssumingLess())
+	fmt.Printf("Allocatable: ")
+	fmt.Println(i.getAllocatable())
+	fmt.Println("..................................................")
 
-	defer fmt.Println("..........................................................................")
+	// upscaling logincs
+	{
+		if len(i.Nodes) < i.MaxNode {
 
-	// theresold is for testing it's value can be updated according to best fit
-	theresold := 900
+			if len(i.Nodes) < i.MinNode {
+				return ADD_NODE, pString("nodes are less than minimum requirement, adding one"), nil
+			}
 
-	// calculating nodeSize ( dynamic nodeSize alog will be used later )
-	if i.TotalCapacity != 0 && i.CurrentNodeCount != 0 {
-		i.nodeSize = i.TotalCapacity / i.CurrentNodeCount
+			filled, err := i.getTotalFilled()
+			if err != nil {
+				return NEUTRAL, nil, err
+			}
+
+			if filled >= i.Threshold && len(i.Nodes) < i.MaxNode {
+				return ADD_NODE, pString(fmt.Sprintf("nodes are filled %d%s and node can be added, adding one", i.Threshold, "%")), nil
+			}
+
+		}
+
+		if len(i.Nodes) > 0 && i.GetStatefulCount() == 0 {
+			return ADD_STATEFUL, pString("no stateful nodes present, convert one node to stateful"), nil
+		}
+
+		filled, err := i.getStatefulFilled()
+		if err != nil {
+			return NEUTRAL, nil, err
+		}
+
+		if filled >= i.Threshold && len(i.Nodes) > i.GetStatefulCount() {
+			return ADD_STATEFUL, pString(fmt.Sprintf("stateful app is filled %d%s, convert one node to stateful", i.Threshold, "%s")), nil
+		}
+
+	}
+	// downscaling logincs
+	{
+		if len(i.Nodes) > i.MinNode {
+			filled, err := i.getFilledByAssumingLess()
+			if err != nil {
+				return NEUTRAL, nil, err
+			}
+
+			if filled < i.Threshold-5 && i.GetStatefulCount() < len(i.Nodes) {
+				return DEL_NODE, pString(fmt.Sprintf("Node usage is less than %d%s if node will be deleted, deleting last node", i.Threshold-5, "%")), nil
+			}
+			// TODO: downgrading statefull node
+		}
 	}
 
-	// validation checks
-	if i.MinNode < 0 {
-		return 0, "", fmt.Errorf("min node can't be negative value")
-	} else if i.MaxNode <= 0 {
-		return 0, "", fmt.Errorf("max node can't be negative value or zero")
-	}
+	// fmt.Printf(`
+	// ################## SCALE STATUS #####################
 
-	// match to min and max if it's on wrong correct it
-	if i.CurrentNodeCount < i.MinNode {
-		return 1, fmt.Sprintf("node is less than min requirement, expanding to %d", i.CurrentNodeCount+1), nil
-	} else if i.CurrentNodeCount > i.MaxNode {
-		return -1, fmt.Sprintf("node is greater than max requirement, reducing to %d", i.CurrentNodeCount-1), nil
-	}
+	// #####################################################
+	// `)
 
-	// if usage is 0 reduce node count to minimum
-	if i.Used == 0 && i.CurrentNodeCount > i.MinNode {
-		return -1, fmt.Sprintf("delete node due to, less uses. reducing node to %d", i.CurrentNodeCount-1), nil
-	} else if i.Used == 0 && i.CurrentNodeCount == i.MinNode {
-		return 0, "no resource created, and node already present on it's minimum count", nil
-	}
+	fmt.Printf(`
 
-	// if by mistake usage is more than TotalCapacity and posible to expand, expand it
-	if i.Used > (i.TotalCapacity-theresold) && i.CurrentNodeCount < i.MaxNode {
-		return 1, fmt.Sprintf("node is less than min requirement, expanding to %d", i.CurrentNodeCount+1), nil
-	} else if i.Used > i.TotalCapacity {
-		fmt.Print(i.Used, i.TotalCapacity)
-		err := fmt.Sprintf("node needs to scale up, but max count reached: %d", i.CurrentNodeCount)
-		return 0, err, fmt.Errorf(err)
-	}
+<==|~ Auto Scale: [ Nothing to do ] ~|==>
 
-	// if it will work even we remove one node remove it ( here the better soln. can be added later )
-	if i.Used < (i.TotalCapacity - i.nodeSize + theresold) {
-		return -1, fmt.Sprintf("node count can be reduced by one, reducing to %d", i.CurrentNodeCount-1), nil
-	}
+`)
 
-	// if no nodes created yet create one
-	if i.TotalCapacity == 0 && i.CurrentNodeCount < i.MaxNode {
-		return 1, "no nodes created yet create one", nil
-	}
+	return NEUTRAL, pString("we can't find any actions needs to be perfomed"), nil
+}
 
-	// any of the above case not matched
-	fmt.Println("..........................................................................")
-	fmt.Println("##### may be no change needed 😇 #####")
-
-	return 0, "we can't process this type of combination, may be it's already in shape or our algo can't handle it", nil
+func pString(str string) *string {
+	return &str
 }

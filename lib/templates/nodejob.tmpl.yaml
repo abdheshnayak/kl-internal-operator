@@ -16,13 +16,19 @@ metadata:
 spec:
   template:
     spec:
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+
       restartPolicy: Never
       # serviceAccount: cluster-kloudlite-svc-account
       serviceAccountName: kloudlite-cluster-svc-account
-      nodeSelector:
-        kloudlite.io/region: kl-blr1
+      # nodeSelector:
+      #   kloudlite.io/region: kl-blr1
       containers:
-      - image: harbor.dev.madhouselabs.io/kloudlite/nodectrl:v2 
+
+      - image: registry.kloudlite.io/kloudlite/production/nodectrl:v1.0.3
         name: nodectrl
         imagePullPolicy: Always
         command:

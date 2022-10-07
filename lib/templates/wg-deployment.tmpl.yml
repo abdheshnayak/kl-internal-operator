@@ -36,7 +36,7 @@ spec:
       containers:
       - name: proxy
         imagePullPolicy: IfNotPresent
-        image: harbor.dev.madhouselabs.io/public/kloudlite/proxy:v2
+        image: registry.kloudlite.io/public/kloudlite/production/proxy:v1.0.3
         env:
           - name: CONFIG_FILE
             value: /proxy-config/config.json
@@ -48,7 +48,7 @@ spec:
       - name: wireguard
         # image: ghcr.io/linuxserver/wireguard
         imagePullPolicy: IfNotPresent
-        image: harbor.dev.madhouselabs.io/public/kloudlite/wg-restart:v2
+        image: registry.kloudlite.io/public/kloudlite/production/wg-restart:v1.0.3
         # command:
         #   - sh
         #   - -c
