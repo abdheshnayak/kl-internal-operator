@@ -6,6 +6,7 @@ import (
 
 	"operators.kloudlite.io/env"
 	"operators.kloudlite.io/lib/constants"
+	fn "operators.kloudlite.io/lib/functions"
 	"operators.kloudlite.io/lib/logging"
 	"operators.kloudlite.io/lib/nameserver"
 
@@ -36,12 +37,19 @@ type RegionReconciler struct {
 }
 
 const (
-	DomainReady string = "domain-ready"
+	DomainReady     string = "domain-ready"
+	DefaultsPatched string = "defaults-patched"
 )
 
-//+kubebuilder:rbac:groups=management.kloudlite.io,resources=regions,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=management.kloudlite.io,resources=regions/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=management.kloudlite.io,resources=regions/finalizers,verbs=update
+const (
+	DefaultAccountName = "kl-core"
+	ClusterName        = "CLUSTER_NAME"
+	ClusterConfigName  = "cluster-config"
+)
+
+// +kubebuilder:rbac:groups=management.kloudlite.io,resources=regions,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=management.kloudlite.io,resources=regions/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=management.kloudlite.io,resources=regions/finalizers,verbs=update
 
 func (r *RegionReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
 	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &managementv1.Region{})
@@ -78,6 +86,10 @@ func (r *RegionReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		return step.ReconcilerResponse()
 	}
 
+	if step := r.reconDefaults(req); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
+
 	if step := r.reconUpdateRecord(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
 	}
@@ -92,16 +104,43 @@ func (r *RegionReconciler) finalize(req *rApi.Request[*managementv1.Region]) ste
 
 }
 
+func (r *RegionReconciler) reconDefaults(req *rApi.Request[*managementv1.Region]) stepResult.Result {
+	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
+	check := rApi.Check{Generation: obj.Generation}
+
+	if obj.Spec.Account == "" {
+		obj.Spec.Account = DefaultAccountName
+
+		ann := obj.GetAnnotations()
+		ann[constants.AccountRef] = obj.Spec.Account
+		obj.SetAnnotations(ann)
+
+		err := r.Update(ctx, obj)
+		return req.Done().RequeueAfter(2 * time.Second).Err(err)
+	}
+
+	check.Status = true
+	if check != checks[DefaultsPatched] {
+		checks[DefaultsPatched] = check
+		return req.UpdateStatus()
+	}
+	return req.Next()
+}
+
 func (r *RegionReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Region]) stepResult.Result {
 	obj, checks := req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
 
 	var nodes corev1.NodeList
-	err := r.Client.List(req.Context(), &nodes, &client.ListOptions{
-		LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-			"kloudlite.io/region": req.Object.Name,
-		}),
-	})
+	err := r.Client.List(
+		req.Context(), &nodes, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(
+				apiLabels.Set{
+					"kloudlite.io/region": req.Object.Name,
+				},
+			),
+		},
+	)
 
 	if err != nil {
 		return req.CheckFailed(DomainReady, check, err.Error())
@@ -120,7 +159,12 @@ func (r *RegionReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Reg
 
 	dns := nameserver.NewClient(r.Env.NameserverEndpoint, r.Env.NameserverUser, r.Env.NameserverPassword)
 
-	if err = dns.UpsertNodeIps(req.Object.Name, ips); err != nil {
+	clusterConfig, err := rApi.Get(req.Context(), r.Client, fn.NN("kube-system", ClusterConfigName), &corev1.ConfigMap{})
+	if err != nil {
+		return req.CheckFailed(DomainReady, check, err.Error()).Err(nil)
+	}
+
+	if err = dns.UpsertNodeIps(req.Object.Name, req.Object.Spec.Account, clusterConfig.Data[ClusterName], ips); err != nil {
 		return req.CheckFailed(DomainReady, check, err.Error())
 	}
 
@@ -141,18 +185,22 @@ func (r *RegionReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Log
 	r.logger = logger.WithName(r.Name)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&managementv1.Region{}).
-		Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
-			if region, ok := object.GetLabels()["kloudlite.io/region"]; !ok {
-				return nil
-			} else {
-				return []reconcile.Request{
-					{
-						NamespacedName: types.NamespacedName{
-							Name: region,
+		Watches(
+			&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(
+				func(object client.Object) []reconcile.Request {
+					region, ok := object.GetLabels()["kloudlite.io/region"]
+					if !ok {
+						return nil
+					}
+					return []reconcile.Request{
+						{
+							NamespacedName: types.NamespacedName{
+								Name: region,
+							},
 						},
-					},
-				}
-			}
-		})).
+					}
+				},
+			),
+		).
 		Complete(r)
 }

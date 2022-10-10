@@ -24,10 +24,12 @@ func NewClient(endpoint, user, password string) *NameServer {
 
 func (n *NameServer) UpsertDomain(domainName string, aRecords []string) error {
 	client := http.Client{Timeout: 5 * time.Second}
-	data, err := json.Marshal(map[string]any{
-		"domain":   domainName,
-		"aRecords": aRecords,
-	})
+	data, err := json.Marshal(
+		map[string]any{
+			"domain":   domainName,
+			"aRecords": aRecords,
+		},
+	)
 
 	if err != nil {
 		return err
@@ -43,12 +45,16 @@ func (n *NameServer) UpsertDomain(domainName string, aRecords []string) error {
 	return err
 }
 
-func (n *NameServer) UpsertNodeIps(region string, ips []string) error {
+func (n *NameServer) UpsertNodeIps(region string, accountId string, clusterName string, ips []string) error {
 	client := http.Client{Timeout: 5 * time.Second}
-	data, err := json.Marshal(map[string]any{
-		"region": region,
-		"ips":    ips,
-	})
+	data, err := json.Marshal(
+		map[string]any{
+			"region":  region,
+			"account": accountId,
+			"cluster": clusterName,
+			"ips":     ips,
+		},
+	)
 
 	if err != nil {
 		return err
