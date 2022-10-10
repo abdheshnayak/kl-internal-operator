@@ -564,9 +564,9 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			return nil
 		}
 
-		// if _, err := functions.ExecCmd(fmt.Sprintf("kubectl taint nodes %s kloudlite.io/acc-edge-ref=%s:NoExecute --overwrite", node.Name, req.Object.Spec.EdgeRef), ""); err != nil {
-		// 	return err
-		// }
+		if _, err := functions.ExecCmd(fmt.Sprintf("kubectl taint nodes kl-byoc-%s kloudlite.io/region=%s:NoExecute --overwrite", req.Object.Name, req.Object.Spec.EdgeRef), ""); err != nil {
+			return err
+		}
 
 		return nil
 	}(); err != nil {

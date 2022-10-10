@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"sort"
 	"time"
 
@@ -97,7 +96,9 @@ func (r *DomainReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Dom
 		return req.CheckFailed(RecoardUpToDate, check, "wg-domain not provided in labels of")
 	}
 
-	res, err := http.Get(fmt.Sprintf("%s/get-records/%s", r.Env.NameserverEndpoint, req.Object.Spec.Name))
+	ns := nameserver.NewClient(r.Env.NameserverEndpoint, r.Env.NameserverUser, r.Env.NameserverPassword)
+
+	res, err := ns.GetRecord(req.Object.Spec.Name)
 
 	if err != nil {
 		return req.CheckFailed(RecoardUpToDate, check, err.Error())
@@ -145,7 +146,7 @@ func (r *DomainReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Dom
 
 	if notMatched {
 
-		dns := nameserver.NewClient(r.Env.NameserverEndpoint)
+		dns := nameserver.NewClient(r.Env.NameserverEndpoint, r.Env.NameserverUser, r.Env.NameserverPassword)
 
 		if err = dns.UpsertDomain(req.Object.Spec.Name, req.Object.Spec.Ips); err != nil {
 			return req.CheckFailed(RecoardUpToDate, check, err.Error())
@@ -164,7 +165,7 @@ func (r *DomainReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Dom
 
 func (r *DomainReconciler) finalize(req *rApi.Request[*managementv1.Domain]) stepResult.Result {
 
-	dns := nameserver.NewClient(r.Env.NameserverEndpoint)
+	dns := nameserver.NewClient(r.Env.NameserverEndpoint, r.Env.NameserverUser, r.Env.NameserverPassword)
 	if err := dns.DeleteDomain(req.Object.Spec.Name); err != nil {
 		return req.FailWithStatusError(err)
 	}

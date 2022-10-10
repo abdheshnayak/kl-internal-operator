@@ -16,9 +16,11 @@ metadata:
 spec:
   template:
     spec:
+      nodeSelector:
+        kloudlite.io/auto-scaler: "true"
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/control-plane
+      - effect: NoExecute
+        key: kloudlite.io/auto-scaler
         operator: Exists
 
       restartPolicy: Never

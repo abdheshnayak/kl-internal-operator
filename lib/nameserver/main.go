@@ -5,17 +5,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 type NameServer struct {
 	endpoint string
+	user     string
+	password string
 }
 
-func NewClient(endpoint string) *NameServer {
-	return &NameServer{endpoint}
+func NewClient(endpoint, user, password string) *NameServer {
+	return &NameServer{
+		endpoint: endpoint,
+		user:     user,
+		password: password,
+	}
 }
 
 func (n *NameServer) UpsertDomain(domainName string, aRecords []string) error {
+	client := http.Client{Timeout: 5 * time.Second}
 	data, err := json.Marshal(map[string]any{
 		"domain":   domainName,
 		"aRecords": aRecords,
@@ -25,15 +33,18 @@ func (n *NameServer) UpsertDomain(domainName string, aRecords []string) error {
 		return err
 	}
 
-	_, err = http.Post(fmt.Sprintf("%s/upsert-domain", n.endpoint), "application/json", bytes.NewBuffer(data))
-
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/upsert-domain", n.endpoint), bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
-	return nil
+
+	req.SetBasicAuth(n.user, n.password)
+	_, err = client.Do(req)
+	return err
 }
 
 func (n *NameServer) UpsertNodeIps(region string, ips []string) error {
+	client := http.Client{Timeout: 5 * time.Second}
 	data, err := json.Marshal(map[string]any{
 		"region": region,
 		"ips":    ips,
@@ -43,12 +54,14 @@ func (n *NameServer) UpsertNodeIps(region string, ips []string) error {
 		return err
 	}
 
-	_, err = http.Post(fmt.Sprintf("%s/upsert-node-ips", n.endpoint), "application/json", bytes.NewBuffer(data))
-
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/upsert-node-ips", n.endpoint), bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
-	return nil
+
+	req.SetBasicAuth(n.user, n.password)
+	_, err = client.Do(req)
+	return err
 }
 
 func (n *NameServer) DeleteDomain(domainName string) error {
@@ -56,10 +69,22 @@ func (n *NameServer) DeleteDomain(domainName string) error {
 	if err != nil {
 		return err
 	}
+	req.SetBasicAuth(n.user, n.password)
 
 	Client := http.Client{}
-
 	_, err = Client.Do(req)
 
 	return err
+}
+
+func (n *NameServer) GetRecord(domainName string) (*http.Response, error) {
+
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get-records/%s", n.endpoint, domainName), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(n.user, n.password)
+
+	Client := http.Client{}
+	return Client.Do(req)
 }

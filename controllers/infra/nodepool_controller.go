@@ -104,7 +104,7 @@ func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) step
 	if err := r.Client.List(
 		ctx, &accountNodes, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
-				map[string]string{constants.NodePoolKey: obj.Name},
+				map[string]string{constants.RegionKey: obj.Spec.EdgeRef},
 			),
 		},
 	); err != nil {
@@ -119,7 +119,7 @@ func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) step
 				ListOptions: client.ListOptions{
 					LabelSelector: apiLabels.SelectorFromValidatedSet(
 						map[string]string{
-							constants.NodePoolKey: obj.Name,
+							constants.RegionKey: obj.Spec.EdgeRef,
 						},
 					),
 				},
@@ -147,7 +147,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		ctx, &accountNodes, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
 				apiLabels.Set{
-					constants.NodePoolKey: req.Object.Name,
+					constants.RegionKey: obj.Spec.EdgeRef,
 				},
 			),
 		},
@@ -176,7 +176,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 	if err := r.List(ctx, &nodes, &client.ListOptions{
 		LabelSelector: apiLabels.SelectorFromValidatedSet(
 			apiLabels.Set{
-				constants.NodePoolKey: req.Object.Name,
+				constants.RegionKey: obj.Spec.EdgeRef,
 			},
 		),
 	}); err != nil {
@@ -187,7 +187,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 
 	totalUsedRes, err := kresource.GetTotalPodRequest(
 		map[string]string{
-			constants.NodePoolKey: obj.Name,
+			constants.RegionKey: obj.Spec.EdgeRef,
 		}, "requests",
 	)
 	if err != nil {
@@ -196,7 +196,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 
 	totalStatefulUsedRes, err := kresource.GetTotalPodRequest(
 		map[string]string{
-			constants.NodePoolKey:        obj.Name,
+			constants.RegionKey:          obj.Spec.EdgeRef,
 			"kloudlite.io/stateful-node": "true",
 		}, "requests",
 	)
@@ -242,7 +242,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 						ObjectMeta: metav1.ObjectMeta{
 							Name: string(uuid.NewUUID()),
 							Labels: apiLabels.Set{
-								constants.NodePoolKey: req.Object.Name,
+								constants.RegionKey: obj.Spec.EdgeRef,
 							},
 							OwnerReferences: []metav1.OwnerReference{functions.AsOwner(obj, true)},
 						},
@@ -333,7 +333,7 @@ func (r *NodePoolReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.L
 		builder.Watches(
 			&source.Kind{Type: watchList[i]}, handler.EnqueueRequestsFromMapFunc(
 				func(o client.Object) []reconcile.Request {
-					l, ok := o.GetLabels()[constants.NodePoolKey]
+					l, ok := o.GetLabels()[constants.RegionKey]
 					if !ok {
 						return nil
 					}

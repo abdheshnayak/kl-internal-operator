@@ -118,7 +118,7 @@ func (r *RegionReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Reg
 
 	req.Object.Status.DisplayVars.Set("kloudlite.io/node-ips", ips)
 
-	dns := nameserver.NewClient(r.Env.NameserverEndpoint)
+	dns := nameserver.NewClient(r.Env.NameserverEndpoint, r.Env.NameserverUser, r.Env.NameserverPassword)
 
 	if err = dns.UpsertNodeIps(req.Object.Name, ips); err != nil {
 		return req.CheckFailed(DomainReady, check, err.Error())
