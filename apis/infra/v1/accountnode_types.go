@@ -31,6 +31,9 @@ type AccountNodeSpec struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
 //+kubebuilder:printcolumn:name="Index",type="integer",JSONPath=".spec.nodeIndex",description="index of node"
+//+kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountRef",description="account"
+//+kubebuilder:printcolumn:name="Provider",type="string",JSONPath=".spec.provider",description="provider"
+//+kubebuilder:printcolumn:name="Region",type="string",JSONPath=".spec.region",description="region"
 
 // AccountNode is the Schema for the accountnodes API
 type AccountNode struct {

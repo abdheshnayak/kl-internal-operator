@@ -20,6 +20,18 @@ spec:
       jsonPath: .spec.nodeIndex
       name: Index
       type: integer
+    - description: account
+      jsonPath: .spec.accountRef
+      name: Account
+      type: string
+    - description: provider
+      jsonPath: .spec.provider
+      name: Provider
+      type: string
+    - description: region
+      jsonPath: .spec.region
+      name: Region
+      type: string
     name: v1
     schema:
       openAPIV3Schema:

@@ -27,6 +27,7 @@ type DomainStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
+//+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.isReady",description="region"
 
 // Domain is the Schema for the domains API
 type Domain struct {

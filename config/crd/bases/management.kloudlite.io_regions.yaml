@@ -15,7 +15,12 @@ spec:
     singular: region
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: region
+      jsonPath: .status.isReady
+      name: Ready
+      type: boolean
+    name: v1
     schema:
       openAPIV3Schema:
         description: Region is the Schema for the regions API

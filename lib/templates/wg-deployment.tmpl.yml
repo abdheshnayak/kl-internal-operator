@@ -16,6 +16,8 @@ metadata:
   ownerReferences:
     - {{ $regionOwnerRefs | toJson }}
 spec:
+
+
   replicas: 1
   strategy:
     type: Recreate
@@ -31,6 +33,11 @@ spec:
         region: {{$region}}
         kloudlite.io/wg-pod: "true"
     spec:
+      tolerations:
+      - effect: NoExecute
+        key: kloudlite.io/region
+        operator: Equal
+        value: {{$region}}
       nodeSelector:
         kloudlite.io/region: {{$region}}
       containers:

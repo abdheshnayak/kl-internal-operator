@@ -149,10 +149,10 @@ func (r *RegionReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Reg
 	ips := []string{}
 	for _, node := range nodes.Items {
 		if _, ok := node.GetAnnotations()["k3s.io/internal-ip"]; !ok {
-			if _, ok := node.GetAnnotations()["flannel.alpha.coreos.com/public-ip"]; !ok {
+			if _, ok := node.GetLabels()["kloudlite.io/public-ip"]; !ok {
 				continue
 			} else {
-				ips = append(ips, node.GetAnnotations()["flannel.alpha.coreos.com/public-ip"])
+				ips = append(ips, node.GetLabels()["kloudlite.io/public-ip"])
 			}
 		} else {
 			ips = append(ips, node.GetAnnotations()["k3s.io/internal-ip"])
