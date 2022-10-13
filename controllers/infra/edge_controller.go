@@ -214,13 +214,14 @@ func (r *EdgeReconciler) UpdatePool(req *rApi.Request[*infrav1.Edge]) error {
 						Labels:          req.Object.GetEnsuredLabels(),
 					},
 					Spec: infrav1.NodePoolSpec{
-						AccountRef: req.Object.Spec.AccountId,
-						EdgeRef:    req.Object.Name,
-						Provider:   req.Object.Spec.Provider,
-						Region:     req.Object.Spec.Region,
-						Config:     p.Config,
-						Min:        p.Min,
-						Max:        p.Max,
+						ProviderRef: req.Object.Spec.CredentialsRef.SecretName,
+						AccountRef:  req.Object.Spec.AccountId,
+						EdgeRef:     req.Object.Name,
+						Provider:    req.Object.Spec.Provider,
+						Region:      req.Object.Spec.Region,
+						Config:      p.Config,
+						Min:         p.Min,
+						Max:         p.Max,
 					},
 				})
 			}

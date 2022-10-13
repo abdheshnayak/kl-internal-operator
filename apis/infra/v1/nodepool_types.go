@@ -7,13 +7,14 @@ import (
 
 // NodePoolSpec defines the desired state of NodePool
 type NodePoolSpec struct {
-	AccountRef string `json:"accountRef,omitempty"`
-	EdgeRef    string `json:"edgeRef,omitempty"`
-	Provider   string `json:"provider,omitempty"`
-	Region     string `json:"region,omitempty"`
-	Config     string `json:"config,omitempty"`
-	Min        int    `json:"min,omitempty"`
-	Max        int    `json:"max,omitempty"`
+	AccountRef  string `json:"accountRef,omitempty"`
+	EdgeRef     string `json:"edgeRef,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	ProviderRef string `json:"providerRef,omitempty"`
+	Region      string `json:"region,omitempty"`
+	Config      string `json:"config,omitempty"`
+	Min         int    `json:"min,omitempty"`
+	Max         int    `json:"max,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -35,7 +36,8 @@ func (in *NodePool) GetEnsuredAnnotations() map[string]string {
 
 func (a *NodePool) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"kloudlite.io/node-pool": a.Name,
+		"kloudlite.io/node-pool":    a.Name,
+		"kloudlite.io/provider-ref": a.Spec.ProviderRef,
 	}
 }
 

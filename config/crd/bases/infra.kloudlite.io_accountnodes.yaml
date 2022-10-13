@@ -58,6 +58,8 @@ spec:
                 type: string
               config:
                 type: string
+              edgeRef:
+                type: string
               nodeIndex:
                 default: 0
                 type: integer
@@ -71,9 +73,9 @@ spec:
                 type: string
             required:
             - config
+            - edgeRef
             - pool
             - provider
-            - providerRef
             - region
             type: object
           status:

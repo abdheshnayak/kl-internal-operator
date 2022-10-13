@@ -47,6 +47,8 @@ spec:
                 type: integer
               provider:
                 type: string
+              providerRef:
+                type: string
               region:
                 type: string
             type: object
