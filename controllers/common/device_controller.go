@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"io/ioutil"
 	"sort"
 	"time"
 
 	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	"operators.kloudlite.io/env"
 	"operators.kloudlite.io/lib/constants"
+	"operators.kloudlite.io/lib/nameserver"
 	"operators.kloudlite.io/lib/templates"
 
 	"github.com/seancfoley/ipaddress-go/ipaddr"
@@ -39,6 +41,7 @@ import (
 type DeviceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Env    *env.Env
 }
 
 // generate service of own
@@ -593,8 +596,6 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 			PublicKey string
 		}
 
-		wgBaseDomain := os.Getenv("WG_DOMAIN")
-
 		if wgDomain == "" {
 			return fmt.Errorf(("CAN'T find WG_DOMAIN in environment"))
 		}
@@ -609,6 +610,20 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 				continue
 			}
 
+			ns := nameserver.NewClient(r.Env.NameserverEndpoint, r.Env.NameserverUser, r.Env.NameserverPassword)
+
+			res, e := ns.GetRegionDomain(region.Spec.Account, region.Name)
+			if e != nil {
+				fmt.Println(e)
+				continue
+			}
+
+			regionDomain, e := ioutil.ReadAll(res.Body)
+			if e != nil {
+				fmt.Println(e)
+				continue
+			}
+
 			accountServerConfigs = append(
 				accountServerConfigs, struct {
 					Region    string
@@ -616,7 +631,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 					PublicKey string
 				}{
 					Region:    region.Name,
-					Endpoint:  fmt.Sprintf("%s.%s.wg.%s:%s", region.Name, wgDomain, wgBaseDomain, wgNodePort),
+					Endpoint:  fmt.Sprintf("%s:%s", string(regionDomain), wgNodePort),
 					PublicKey: wgPublicKey,
 				},
 			)
@@ -633,12 +648,16 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 					ServerPublicKey string
 					ServerEndpoint  string
 					RewriteRules    string
+					PodCidr         string
+					SvcCidr         string
 				}{
 					DeviceIp:        deviceIp,
 					DevicePvtKey:    privateKey,
 					ServerPublicKey: asc.PublicKey,
 					ServerEndpoint:  asc.Endpoint,
 					RewriteRules:    dnsIp,
+					PodCidr:         r.Env.PodCidr,
+					SvcCidr:         r.Env.SvcCidr,
 				},
 			)
 

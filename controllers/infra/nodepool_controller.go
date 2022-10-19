@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -254,7 +255,30 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 							Config:      obj.Spec.Config,
 							Region:      obj.Spec.Region,
 							Pool:        obj.Name,
-							Index:       len(nodes.Items),
+							Index: func() int {
+								ind := len(nodes.Items)
+								for i := 0; i < ind; i++ {
+									found := false
+									for _, n := range nodes.Items {
+										index, ok := n.GetLabels()["kloudlite.io/node-index"]
+										if !ok {
+											continue
+										}
+										in, err := strconv.ParseInt(index, 10, 32)
+										if err != nil {
+											continue
+										}
+										if i == int(in) {
+											found = true
+											break
+										}
+									}
+									if !found {
+										return i
+									}
+								}
+								return ind
+							}(),
 						},
 					},
 				); err != nil {
@@ -265,9 +289,19 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 
 		case rcalculate.DEL_NODE:
 			{
+				// find last node and delete
+
 				if len(accountNodes.Items) > 0 {
+
+					last := 0
 					for _, n := range accountNodes.Items {
-						if n.Spec.Index == len(accountNodes.Items)-1 {
+						if last < n.Spec.Index {
+							last = n.Spec.Index
+						}
+					}
+
+					for _, n := range accountNodes.Items {
+						if n.Spec.Index == last {
 							if err := r.Delete(
 								ctx, &infrav1.AccountNode{
 									ObjectMeta: metav1.ObjectMeta{

@@ -94,3 +94,15 @@ func (n *NameServer) GetRecord(domainName string) (*http.Response, error) {
 	Client := http.Client{}
 	return Client.Do(req)
 }
+
+func (n *NameServer) GetRegionDomain(accountId, regionId string) (*http.Response, error) {
+
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get-region-domain/%s/%s", n.endpoint, accountId, regionId), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(n.user, n.password)
+
+	Client := http.Client{}
+	return Client.Do(req)
+}

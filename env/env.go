@@ -9,6 +9,8 @@ type Env struct {
 	NameserverUser     string `env:"NAMESERVER_USER" required:"true"`
 	NameserverPassword string `env:"NAMESERVER_PASSWORD" required:"true"`
 	WgDomain           string `env:"WG_DOMAIN" required:"true"`
+	PodCidr            string `env:"POD_CIDR" required:"true"`
+	SvcCidr            string `env:"SVC_CIDR" required:"true"`
 }
 
 func GetEnvOrDie() *Env {

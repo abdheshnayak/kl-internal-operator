@@ -145,9 +145,9 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, request ctrl.Request)
 		return step.ReconcilerResponse()
 	}
 
-	if step := r.reconWGDomains(req); !step.ShouldProceed() {
-		return step.ReconcilerResponse()
-	}
+	// if step := r.reconWGDomains(req); !step.ShouldProceed() {
+	// 	return step.ReconcilerResponse()
+	// }
 
 	if step := r.reconWGServerKeys(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
@@ -165,9 +165,9 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, request ctrl.Request)
 		return step.ReconcilerResponse()
 	}
 
-	if step := r.reconDomain(req); !step.ShouldProceed() {
-		return step.ReconcilerResponse()
-	}
+	// if step := r.reconDomain(req); !step.ShouldProceed() {
+	// 	return step.ReconcilerResponse()
+	// }
 
 	if step := r.reconCoredns(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()

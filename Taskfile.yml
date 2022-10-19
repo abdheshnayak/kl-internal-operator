@@ -21,8 +21,10 @@ tasks:
 
   run:
     env:
-      COMM: true
-      INFRA: false
+      COMM: false
+      INFRA: true
+      POD_CIDR: "10.244.0.0/16"
+      SVC_CIDR: "10.96.0.0/12"
       NAMESERVER_ENDPOINT: http://dns-api.kl-core.svc.cluster.local
       WG_DOMAIN: kloudlite.io
       SSH_KEY_PATH: /home/nonroot/ssh
