@@ -684,7 +684,7 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 							"kloudlite.io/device-ref":       req.Object.Name,
 						},
 						OwnerReferences: []metav1.OwnerReference{
-							functions.AsOwner(req.Object),
+							functions.AsOwner(req.Object, true),
 						},
 					},
 					Data:       wConfigs,

@@ -244,34 +244,29 @@ func (r *EdgeReconciler) UpdatePool(req *rApi.Request[*infrav1.Edge]) error {
 
 func (r *EdgeReconciler) finalize(req *rApi.Request[*infrav1.Edge]) stepResult.Result {
 	// check and delete region
-	if err, done := func() (error, bool) {
-
+	if err := func() error {
 		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
 			Name: req.Object.Name,
 		}, &managementv1.Region{})
 
 		if err != nil {
 			if !apiErrors.IsNotFound(err) {
-				return err, false
+				return err
 			}
-			return err, true
+			return nil
 		}
 
-		if _, err = functions.ExecCmd(
+		_, err = functions.ExecCmd(
 			fmt.Sprintf("kubectl delete region/%s", req.Object.Name),
-			""); err != nil {
-			return err, false
-		}
+			"")
 
-		return nil, false
+		return err
 	}(); err != nil {
 		return req.FailWithStatusError(err)
-	} else if done {
-		return req.Finalize()
 	}
 
 	// check is pool present
-	if err, done := func() (error, bool) {
+	if err := func() error {
 
 		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
 			Name: req.Object.Name,
@@ -279,24 +274,18 @@ func (r *EdgeReconciler) finalize(req *rApi.Request[*infrav1.Edge]) stepResult.R
 
 		if err != nil {
 			if !apiErrors.IsNotFound(err) {
-				return err, false
+				return err
 			}
-			return err, true
+			return nil
 		}
 
 		_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool -l kloudlite.io/edge-ref", req.Object.Name), "")
-		if err != nil {
-			return err, false
-		}
-
-		return nil, false
+		return err
 	}(); err != nil {
 		return req.FailWithStatusError(err)
-	} else if done {
-		return req.Finalize()
 	}
 
-	return req.Done()
+	return req.Finalize()
 }
 
 func (r *EdgeReconciler) reconcileOperations(req *rApi.Request[*infrav1.Edge]) stepResult.Result {
