@@ -227,6 +227,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		Threshold:    80,
 	}
 
+	fmt.Println("Scale-> ", obj.Name)
 	action, msg, err := i.Calculate()
 	if err != nil {
 		return req.CheckFailed(AccountNodesReady, check, err.Error())

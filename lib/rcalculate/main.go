@@ -122,6 +122,7 @@ type Input struct {
 	StatefulUsed int
 	TotalUsed    int
 	Threshold    int
+	Buffer       int
 
 	statefulCount     int
 	statefulThreshold int
@@ -237,7 +238,7 @@ func (i *Input) getTotalFilled() (int, error) {
 		return 0, nil
 	}
 
-	threshold := i.TotalUsed * 100 / allocatable.Memory
+	threshold := (i.TotalUsed + i.Buffer) * 100 / (allocatable.Memory)
 
 	return threshold, nil
 }
@@ -267,7 +268,7 @@ func (i *Input) getFilledByAssumingLess() (int, error) {
 		return 200, nil
 	}
 
-	threshold := i.TotalUsed * 100 / (allocatable.Memory - s)
+	threshold := (i.TotalUsed + i.Buffer) * 100 / (allocatable.Memory - s)
 
 	return threshold, nil
 }
@@ -278,15 +279,15 @@ func (i *Input) getFilledByAssumingLess() (int, error) {
 func (i *Input) Calculate() (int, *string, error) {
 
 	fmt.Println("..................................................")
-	fmt.Println("Total Used", i.TotalUsed)
-	fmt.Println("Stateful Used", i.StatefulUsed)
-	fmt.Println("Min Node", i.MinNode)
-	fmt.Println("Max Node", i.MaxNode)
-	fmt.Printf("Filled:")
+	fmt.Println("Scale-> Total Used", i.TotalUsed)
+	fmt.Println("Scale-> Stateful Used", i.StatefulUsed)
+	fmt.Println("Scale-> Min Node", i.MinNode)
+	fmt.Println("Scale-> Max Node", i.MaxNode)
+	fmt.Printf("Scale-> Filled:")
 	fmt.Println(i.getTotalFilled())
-	fmt.Printf("If node delete filled:")
+	fmt.Printf("Scale-> If node delete filled:")
 	fmt.Println(i.getFilledByAssumingLess())
-	fmt.Printf("Allocatable: ")
+	fmt.Printf("Scale-> Allocatable: ")
 	fmt.Println(i.getAllocatable())
 	fmt.Println("..................................................")
 

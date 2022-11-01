@@ -63,10 +63,12 @@ spec:
   selector:
     matchLabels:
       app: dns
+      kloudlite.io/region: {{$region}}
   template:
     metadata:
       labels:
         app: dns
+        kloudlite.io/region: {{$region}}
     spec:
       tolerations:
       - effect: NoExecute
@@ -113,9 +115,10 @@ spec:
           timeoutSeconds: 1
         resources:
           limits:
+            # cpu: 100m
             memory: 170Mi
           requests:
-            cpu: 100m
+            # cpu: 100m
             memory: 70Mi
         securityContext:
           allowPrivilegeEscalation: false
