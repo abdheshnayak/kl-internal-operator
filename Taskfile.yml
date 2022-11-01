@@ -56,7 +56,17 @@ tasks:
     cmds:
       - make dev-docker-build dev-docker-push
 
-  gen-yamls:
+
+  yaml:crds:
+    cmds:
+      - |+
+        for file in $(ls config/crd/bases/*.yaml)
+        do
+          cat $file
+          echo "---"
+        done
+
+  yaml:operator:
     vars:
       Name: kloudlite-internal-operator
       Image: registry.kloudlite.io/kloudlite/{{.EnvName}}/{{.Name}}:{{.Tag}}
@@ -67,10 +77,7 @@ tasks:
       - sh: test -n '{{.EnvName}}'
         msg: "var EnvName must have a value"
     cmds:
-      - make manifests
       - |+
-        cat config/crd/bases/*.yaml | yq -y
-
         yamls=$(kustomize build config/default | yq 'select(.kind | [.] - ["Deployment", "Service", "ConfigMap"] | length > 0 | not)' -y)
         echo "---"
         echo "$yamls" | yq '
