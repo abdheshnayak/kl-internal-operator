@@ -4,10 +4,6 @@ import (
 	"context"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-
-	corev1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,8 +27,7 @@ type CloudProviderReconciler struct {
 }
 
 const (
-	EdgesDeleted  string = "edges-deleted"
-	SecretDeleted string = "secret-deleted"
+	EdgesDeleted string = "edges-deleted"
 )
 
 //+kubebuilder:rbac:groups=infra.kloudlite.io,resources=cloudproviders,verbs=get;list;watch;create;update;patch;delete
@@ -118,25 +113,7 @@ func (r *CloudProviderReconciler) finalize(req *rApi.Request[*infrav1.CloudProvi
 	}
 
 	if len(Edges.Items) != 0 {
-		// r.Get(ctx,)
-		if _, err := rApi.Get(ctx, r.Client, types.NamespacedName{
-			Name: obj.Name,
-		}, &corev1.Secret{}); err != nil {
-			if !apiErrors.IsNotFound(err) {
-				return req.CheckFailed(SecretDeleted, check, err.Error())
-			}
-			return req.Done()
-		}
-
-		if err := r.Delete(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: obj.Name,
-			},
-		}); err != nil {
-			return req.CheckFailed(SecretDeleted, check, err.Error())
-		}
-		checks[SecretDeleted] = check
-		return req.UpdateStatus()
+		return req.Done()
 	}
 
 	// check and everything is deleted and delete secret
