@@ -847,11 +847,27 @@ func (r *AccountReconciler) reconCoredns(req *rApi.Request[*managementv1.Account
 			configExists = false
 		}
 
+		regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
+
+		if !ok {
+			return req.CheckFailed(AccountWGSConfigReady, check, "regions not found")
+		}
+		var klReg string
+		for _, reg := range regions.Items {
+			if reg.Spec.Account == "kl-core" {
+				klReg = reg.Name
+			}
+		}
+		if klReg == "" {
+			return req.CheckFailed(AccountWGSConfigReady, check, "regions not found")
+		}
+
 		if b, err := templates.Parse(
 			templates.Coredns, map[string]any{
 				"obj":                 req.Object,
 				"corednsConfigExists": configExists,
 				"owner-refs":          []metav1.OwnerReference{functions.AsOwner(obj, true)},
+				"region":              klReg,
 			},
 		); err != nil {
 			return req.CheckFailed(CorednsDeployReady, check, err.Error())
