@@ -53,9 +53,10 @@ func (in *Edge) GetEnsuredAnnotations() map[string]string {
 
 func (a *Edge) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"kloudlite.io/provider":    a.Spec.Provider,
-		"kloudlite.io/account-ref": a.Spec.AccountId,
-		"kloudlite.io/edge-ref":    a.Name,
+		"kloudlite.io/provider":     a.Spec.Provider,
+		"kloudlite.io/account-ref":  a.Spec.AccountId,
+		"kloudlite.io/edge-ref":     a.Name,
+		"kloudlite.io/provider-ref": a.Spec.CredentialsRef.SecretName,
 	}
 }
 

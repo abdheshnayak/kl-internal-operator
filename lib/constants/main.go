@@ -61,6 +61,8 @@ const (
 	WgDeploy    string = "kloudlite.io/wg-deployment"
 	WgDomain    string = "kloudlite.io/wg-domain"
 
+	ProviderRef string = "kloudlite.io/provider-ref"
+
 	ClearStatusKey string = "kloudlite.io/clear-status"
 	RestartKey     string = "kloudlite.io/do-restart"
 	NodePoolKey    string = "kloudlite.io/node-pool"

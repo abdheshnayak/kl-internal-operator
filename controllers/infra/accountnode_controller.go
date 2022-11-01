@@ -568,6 +568,10 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			return err
 		}
 
+		// if _, err := functions.ExecCmd(fmt.Sprintf("kubectl taint nodes kl-byoc-%s kloudlite.io/provider-ref=%s:NoExecute --overwrite", req.Object.Name, req.Object.Spec.ProviderRef), ""); err != nil {
+		// 	return err
+		// }
+
 		return nil
 	}(); err != nil {
 		return req.FailWithStatusError(err)
@@ -918,11 +922,11 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 	}
 
 	// do some task here
-	if err := func() error {
-		return nil
-	}(); err != nil {
-		return req.FailWithOpError(err)
-	}
+	// if err := func() error {
+	// 	return nil
+	// }(); err != nil {
+	// 	return req.FailWithOpError(err)
+	// }
 
 	return req.Done()
 }

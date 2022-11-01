@@ -162,9 +162,12 @@ func MapSet[T any](m map[string]T, key string, value T) {
 }
 
 func MapContains[T comparable](target map[string]T, m map[string]T) bool {
-	if target == nil || m == nil {
+	if target == nil && m == nil {
 		return true
+	} else if m == nil {
+		return false
 	}
+
 	for k, v := range m {
 		if target[k] != v {
 			return false

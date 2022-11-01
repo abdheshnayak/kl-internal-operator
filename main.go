@@ -6,9 +6,10 @@ import (
 	"os"
 
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+
 	"operators.kloudlite.io/env"
 	"operators.kloudlite.io/lib/logging"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -160,6 +161,14 @@ func main() {
 		}
 
 		logger := logging.NewOrDie(&logging.Options{Dev: true})
+
+		if err := (&infracontrollers.CloudProviderReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr, logger); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "CloudProvider")
+			os.Exit(1)
+		}
 
 		if err := (&infracontrollers.NodePoolReconciler{}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NodePool")

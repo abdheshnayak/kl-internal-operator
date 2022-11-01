@@ -6,7 +6,6 @@ import (
 	"time"
 
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -109,15 +108,10 @@ func (r *EdgeReconciler) reconRegion(req *rApi.Request[*infrav1.Edge]) stepResul
 		if err := r.applyRegion(req); err != nil {
 			return req.CheckFailed(RegionReady, check, err.Error())
 		}
-		return nil
-	}
-
-	if reg.Spec.Account != req.Object.Spec.AccountId {
-
+	} else if reg.Spec.Account != req.Object.Spec.AccountId {
 		if err := r.applyRegion(req); err != nil {
 			return req.CheckFailed(RegionReady, check, err.Error())
 		}
-		return nil
 	}
 
 	check.Status = true
@@ -147,31 +141,31 @@ func (r *EdgeReconciler) reconPool(req *rApi.Request[*infrav1.Edge]) stepResult.
 		if err := r.UpdatePool(req); err != nil {
 			return req.CheckFailed(PoolReady, check, err.Error())
 		}
-		return nil
 	} else if len(nodePools.Items) != len(req.Object.Spec.Pools) {
 
 		if err := r.UpdatePool(req); err != nil {
 			return req.CheckFailed(PoolReady, check, err.Error())
 		}
-		return nil
-	}
+	} else {
 
-	for _, p := range req.Object.Spec.Pools {
-		matched := false
-		for _, np := range nodePools.Items {
-			if fmt.Sprintf("%s-%s", req.Object.Name, p.Name) == np.Name &&
-				p.Min == np.Spec.Min &&
-				p.Max == np.Spec.Max &&
-				p.Config == np.Spec.Config {
-				matched = true
-				break
+		for _, p := range req.Object.Spec.Pools {
+			matched := false
+			for _, np := range nodePools.Items {
+				if fmt.Sprintf("%s-%s", req.Object.Name, p.Name) == np.Name &&
+					p.Min == np.Spec.Min &&
+					p.Max == np.Spec.Max &&
+					p.Config == np.Spec.Config {
+					matched = true
+					break
+				}
 			}
-		}
 
-		if !matched {
-			if err := r.UpdatePool(req); err != nil {
-				return req.CheckFailed(PoolReady, check, err.Error())
+			if !matched {
+				if err := r.UpdatePool(req); err != nil {
+					return req.CheckFailed(PoolReady, check, err.Error())
+				}
 			}
+
 		}
 
 	}
@@ -201,32 +195,30 @@ func (r *EdgeReconciler) applyRegion(req *rApi.Request[*infrav1.Edge]) error {
 }
 
 func (r *EdgeReconciler) UpdatePool(req *rApi.Request[*infrav1.Edge]) error {
+	b, err := templates.Parse(templates.NodePools, map[string]any{"pools": func() []infrav1.NodePool {
+		pls := make([]infrav1.NodePool, 0)
+		for _, p := range req.Object.Spec.Pools {
 
-	b, err := templates.Parse(templates.NodePools, map[string]any{
-		"pools": func() []infrav1.NodePool {
-			pls := make([]infrav1.NodePool, 0)
-			for _, p := range req.Object.Spec.Pools {
-
-				pls = append(pls, infrav1.NodePool{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:            fmt.Sprintf("%s-%s", req.Object.Name, p.Name),
-						OwnerReferences: []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
-						Labels:          req.Object.GetEnsuredLabels(),
-					},
-					Spec: infrav1.NodePoolSpec{
-						ProviderRef: req.Object.Spec.CredentialsRef.SecretName,
-						AccountRef:  req.Object.Spec.AccountId,
-						EdgeRef:     req.Object.Name,
-						Provider:    req.Object.Spec.Provider,
-						Region:      req.Object.Spec.Region,
-						Config:      p.Config,
-						Min:         p.Min,
-						Max:         p.Max,
-					},
-				})
-			}
-			return pls
-		}(),
+			pls = append(pls, infrav1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            fmt.Sprintf("%s-%s", req.Object.Name, p.Name),
+					OwnerReferences: []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
+					Labels:          req.Object.GetEnsuredLabels(),
+				},
+				Spec: infrav1.NodePoolSpec{
+					ProviderRef: req.Object.Spec.CredentialsRef.SecretName,
+					AccountRef:  req.Object.Spec.AccountId,
+					EdgeRef:     req.Object.Name,
+					Provider:    req.Object.Spec.Provider,
+					Region:      req.Object.Spec.Region,
+					Config:      p.Config,
+					Min:         p.Min,
+					Max:         p.Max,
+				},
+			})
+		}
+		return pls
+	}(),
 	})
 
 	if err != nil {
@@ -286,23 +278,6 @@ func (r *EdgeReconciler) finalize(req *rApi.Request[*infrav1.Edge]) stepResult.R
 	}
 
 	return req.Finalize()
-}
-
-func (r *EdgeReconciler) reconcileOperations(req *rApi.Request[*infrav1.Edge]) stepResult.Result {
-	// do some task here
-	if err := func() error {
-
-		if !meta.IsStatusConditionFalse(req.Object.Status.Conditions, "PoolUpToDate") {
-			return nil
-		}
-
-		return nil
-
-	}(); err != nil {
-		return req.FailWithOpError(err)
-	}
-
-	return req.Done()
 }
 
 // SetupWithManager sets up the controller with the Manager.

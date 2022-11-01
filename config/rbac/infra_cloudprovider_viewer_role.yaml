@@ -1,0 +1,20 @@
+# permissions for end users to view cloudproviders.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloudprovider-viewer-role
+rules:
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - cloudproviders
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - cloudproviders/status
+  verbs:
+  - get

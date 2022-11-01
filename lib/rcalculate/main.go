@@ -250,6 +250,9 @@ func (i *Input) getFilledByAssumingLess() (int, error) {
 	if i.TotalUsed == 0 {
 		return 0, nil
 	}
+	if len(i.Nodes) == 0 {
+		return 200, nil
+	}
 
 	allocatable, err := i.getAllocatable()
 	if err != nil {

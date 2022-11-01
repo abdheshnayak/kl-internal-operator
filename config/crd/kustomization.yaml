@@ -10,4 +10,5 @@ resources:
 - bases/infra.kloudlite.io_accountnodes.yaml
 - bases/infra.kloudlite.io_accountproviders.yaml
 - bases/infra.kloudlite.io_nodepools.yaml
+- bases/infra.kloudlite.io_cloudproviders.yaml
 #+kubebuilder:scaffold:crdkustomizeresource

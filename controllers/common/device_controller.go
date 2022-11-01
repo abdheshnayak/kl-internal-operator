@@ -168,38 +168,6 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 		return req.FailWithStatusError(err)
 	}
 
-	// fetching domains
-	if err := func() error {
-
-		var domains managementv1.DomainList
-
-		err := r.List(req.Context(), &domains)
-		if err != nil || len(domains.Items) == 0 {
-			if !apiErrors.IsNotFound(err) {
-				return err
-			}
-
-			isReady = false
-
-			cs = append(
-				cs,
-				conditions.New(
-					"WGServerDomainsFound",
-					false,
-					"NotFound",
-					"WG Server domains Not found",
-				),
-			)
-			return nil
-		}
-
-		rApi.SetLocal(req, "wg-domains", domains)
-
-		return nil
-	}(); err != nil {
-		return req.FailWithStatusError(err)
-	}
-
 	if err := func() error {
 
 		var CheckErr error
@@ -584,11 +552,11 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 			return fmt.Errorf("wg public key not available")
 		}
 
-		wgDomain, ok := account.Status.GeneratedVars.GetString("wg-domain")
+		// wgDomain, ok := account.Status.GeneratedVars.GetString("wg-domain")
 
-		if !ok {
-			return fmt.Errorf("wg domain not available")
-		}
+		// if !ok {
+		// 	return fmt.Errorf("wg domain not available")
+		// }
 
 		var accountServerConfigs []struct {
 			Region    string
@@ -596,9 +564,9 @@ func (r *DeviceReconciler) reconcileStatus(req *rApi.Request[*managementv1.Devic
 			PublicKey string
 		}
 
-		if wgDomain == "" {
-			return fmt.Errorf(("CAN'T find WG_DOMAIN in environment"))
-		}
+		// if wgDomain == "" {
+		// 	return fmt.Errorf(("CAN'T find WG_DOMAIN in environment"))
+		// }
 
 		for _, region := range regions.Items {
 

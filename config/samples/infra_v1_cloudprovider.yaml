@@ -1,0 +1,6 @@
+apiVersion: infra.kloudlite.io/v1
+kind: CloudProvider
+metadata:
+  name: cloudprovider-sample
+spec:
+  # TODO(user): Add fields here
