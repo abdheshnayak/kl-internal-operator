@@ -706,6 +706,7 @@ func getRemoteDeviceIp(deviceOffcet int64) (*ipaddr.IPAddressString, error) {
 }
 
 func (r *DeviceReconciler) reconcileOperations(req *rApi.Request[*managementv1.Device]) rApi.StepResult {
+	fmt.Println("hello")
 
 	if meta.IsStatusConditionFalse(req.Object.Status.Conditions, "DevicesUpToDate") {
 
