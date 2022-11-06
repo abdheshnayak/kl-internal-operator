@@ -30,7 +30,7 @@ spec:
       #   kloudlite.io/region: kl-blr1
       containers:
 
-      - image: registry.kloudlite.io/kloudlite/production/nodectrl:v1.0.3
+      - image: registry.kloudlite.io/kloudlite/production/nodectrl:v1.0.4
         name: nodectrl
         imagePullPolicy: Always
         command:

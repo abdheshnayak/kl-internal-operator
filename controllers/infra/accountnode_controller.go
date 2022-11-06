@@ -32,12 +32,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	infrav1 "operators.kloudlite.io/apis/infra/v1"
+	"operators.kloudlite.io/env"
 )
 
 // AccountNodeReconciler reconciles a AccountNode object
 type AccountNodeReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Env    *env.Env
 }
 
 const (
@@ -230,12 +232,13 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 			return fmt.Errorf("can't fetch secret from local")
 		}
 
-		klConfig := doKLConf{
+		klConfig := KLConf{
 			Version: "v1",
-			Values: doKLConfValues{
+			Values: KLConfValues{
 				StorePath:   os.Getenv("STORE_PATH"),
 				TfTemplates: os.Getenv("TF_TEMPLATES_PATH"),
 				Secrets:     "not_required_to_delete",
+				SSHPath:     r.Env.SSHPath,
 			},
 		}
 
@@ -753,12 +756,13 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 
 		base64Secret := base64.StdEncoding.EncodeToString([]byte(clusterSecret))
 
-		klConfig := doKLConf{
+		klConfig := KLConf{
 			Version: "v1",
-			Values: doKLConfValues{
+			Values: KLConfValues{
 				StorePath:   os.Getenv("STORE_PATH"),
 				TfTemplates: os.Getenv("TF_TEMPLATES_PATH"),
 				Secrets:     base64Secret,
+				SSHPath:     r.Env.SSHPath,
 			},
 		}
 

@@ -49,13 +49,14 @@ type awsConfig struct {
 	Spec     awsSpec `yaml:"spec" json:"spec"`
 }
 
-type doKLConfValues struct {
+type KLConfValues struct {
 	StorePath   string `yaml:"storePath" json:"storePath"`
 	TfTemplates string `yaml:"tfTemplatesPath" json:"tfTemplatesPath"`
 	Secrets     string `yaml:"secrets" json:"secrets"`
+	SSHPath     string `yaml:"sshPath" json:"sshPath"`
 }
 
-type doKLConf struct {
-	Version string         `yaml:"version" json:"version"`
-	Values  doKLConfValues `yaml:"spec" json:"spec"`
+type KLConf struct {
+	Version string       `yaml:"version" json:"version"`
+	Values  KLConfValues `yaml:"spec" json:"spec"`
 }

@@ -11,6 +11,7 @@ type Env struct {
 	WgDomain           string `env:"WG_DOMAIN" required:"true"`
 	PodCidr            string `env:"POD_CIDR" required:"true"`
 	SvcCidr            string `env:"SVC_CIDR" required:"true"`
+	SSHPath            string `env:"SSH_PATH" required:"true"`
 }
 
 func GetEnvOrDie() *Env {
