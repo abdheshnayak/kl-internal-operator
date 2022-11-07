@@ -78,6 +78,10 @@ spec:
           - mountPath: /usr/share/pod
             name: tmp-pod
 
+          - name: agent-ssh
+            mountPath: "/home/nonroot/ssh"
+
+
       - image: nxtcoder17/s3fs-mount:v1.0.0
         name: spaces-sidecar
         envFrom:
@@ -123,9 +127,6 @@ spec:
         - mountPath: /usr/share/pod
           name: tmp-pod
 
-        - name: agent-ssh
-          mountPath: "/home/nonroot/ssh"
-
       volumes:
         - emptyDir: {}
           name: shared-data
@@ -135,5 +136,5 @@ spec:
 
         - name: agent-ssh
           secret:
-            secretName: /home/nonroot/ssh
+            secretName: agent-ssh
             # optional: false # default setting; "mysecret" must exist

@@ -178,6 +178,7 @@ func main() {
 		if err := (&infracontrollers.AccountNodeReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
+			Env:    envVars,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "AccountNode")
 			os.Exit(1)
