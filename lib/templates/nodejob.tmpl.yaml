@@ -123,9 +123,17 @@ spec:
         - mountPath: /usr/share/pod
           name: tmp-pod
 
+        - name: agent-ssh
+          mountPath: "/home/nonroot/ssh"
+
       volumes:
         - emptyDir: {}
           name: shared-data
 
         - emptyDir: {}
           name: tmp-pod
+
+        - name: agent-ssh
+          secret:
+            secretName: /home/nonroot/ssh
+            # optional: false # default setting; "mysecret" must exist
