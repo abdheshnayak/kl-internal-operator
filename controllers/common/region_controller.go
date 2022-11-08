@@ -6,7 +6,6 @@ import (
 
 	"operators.kloudlite.io/env"
 	"operators.kloudlite.io/lib/constants"
-	fn "operators.kloudlite.io/lib/functions"
 	"operators.kloudlite.io/lib/logging"
 	"operators.kloudlite.io/lib/nameserver"
 
@@ -163,12 +162,12 @@ func (r *RegionReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Reg
 
 	dns := nameserver.NewClient(r.Env.NameserverEndpoint, r.Env.NameserverUser, r.Env.NameserverPassword)
 
-	clusterConfig, err := rApi.Get(req.Context(), r.Client, fn.NN("kube-system", ClusterConfigName), &corev1.ConfigMap{})
-	if err != nil {
-		return req.CheckFailed(DomainReady, check, err.Error()).Err(nil)
-	}
+	// clusterConfig, err := rApi.Get(req.Context(), r.Client, fn.NN("kube-system", ClusterConfigName), &corev1.ConfigMap{})
+	// if err != nil {
+	// 	return req.CheckFailed(DomainReady, check, err.Error()).Err(nil)
+	// }
 
-	if err = dns.UpsertNodeIps(req.Object.Name, req.Object.Spec.Account, clusterConfig.Data[ClusterName], ips); err != nil {
+	if err = dns.UpsertNodeIps(req.Object.Name, req.Object.Spec.Account, r.Env.ClusterId, ips); err != nil {
 		return req.CheckFailed(DomainReady, check, err.Error())
 	}
 
