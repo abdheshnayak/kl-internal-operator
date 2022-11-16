@@ -12,6 +12,7 @@ type Env struct {
 	PodCidr            string `env:"POD_CIDR" required:"true"`
 	SvcCidr            string `env:"SVC_CIDR" required:"true"`
 	SSHPath            string `env:"SSH_PATH" required:"true"`
+	ClusterId          string `env:"CLUSTER_ID" required:"true"`
 }
 
 func GetEnvOrDie() *Env {
