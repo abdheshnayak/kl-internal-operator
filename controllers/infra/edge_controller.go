@@ -247,11 +247,8 @@ func (r *EdgeReconciler) finalize(req *rApi.Request[*infrav1.Edge]) stepResult.R
 			return nil
 		}
 
-		_, err = functions.ExecCmd(
-			fmt.Sprintf("kubectl delete region/%s", req.Object.Name),
-			"")
+		return r.Delete(req.Context(), req.Object)
 
-		return err
 	}(); err != nil {
 		return req.FailWithStatusError(err)
 	}
