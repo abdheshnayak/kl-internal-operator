@@ -30,7 +30,6 @@ import (
 type EdgeReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-
 	logger logging.Logger
 	Name   string
 }

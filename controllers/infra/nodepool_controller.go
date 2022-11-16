@@ -353,8 +353,6 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 }
 
 func (r *NodePoolReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Logger) error {
-	r.Client = mgr.GetClient()
-	r.Scheme = mgr.GetScheme()
 	r.logger = logger.WithName(r.Name)
 
 	builder := ctrl.NewControllerManagedBy(mgr).For(&infrav1.NodePool{})
