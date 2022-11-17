@@ -97,7 +97,7 @@ func (r *NodePoolReconciler) Reconcile(ctx context.Context, request ctrl.Request
 }
 
 func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) stepResult.Result {
-	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
+	ctx, obj := req.Context(), req.Object
 
 	check := rApi.Check{Generation: obj.Generation}
 
@@ -112,29 +112,36 @@ func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) step
 		if !apiErrors.IsNotFound(err) {
 			return req.CheckFailed(AccountNodesDeleted, check, err.Error())
 		}
-	}
-
-	if len(accountNodes.Items) >= 1 {
-		if err := r.DeleteAllOf(
-			ctx, &infrav1.AccountNode{}, &client.DeleteAllOfOptions{
-				ListOptions: client.ListOptions{
-					LabelSelector: apiLabels.SelectorFromValidatedSet(
-						map[string]string{
-							constants.RegionKey: obj.Spec.EdgeRef,
-						},
-					),
-				},
-			},
-		); err != nil {
-			return req.CheckFailed(AccountNodesDeleted, check, err.Error())
-		}
-		checks[AccountNodesDeleted] = check
-		return req.UpdateStatus()
+		return req.CheckFailed(AccountNodesDeleted, check, err.Error())
 	}
 
 	if len(accountNodes.Items) != 0 {
 		return req.Done()
 	}
+
+	// if len(accountNodes.Items) >= 1 {
+	// 	if err := r.DeleteAllOf(
+	// 		ctx, &infrav1.AccountNode{}, &client.DeleteAllOfOptions{
+	// 			ListOptions: client.ListOptions{
+	// 				LabelSelector: apiLabels.SelectorFromValidatedSet(
+	// 					map[string]string{
+	// 						constants.RegionKey: obj.Spec.EdgeRef,
+	// 					},
+	// 				),
+	// 			},
+	// 		},
+	// 	); err != nil {
+	// 		return req.CheckFailed(AccountNodesDeleted, check, err.Error())
+	// 	}
+	// 	checks[AccountNodesDeleted] = check
+	// 	return req.UpdateStatus()
+	// }
+
+	// if len(accountNodes.Items) != 0 {
+	// 	return req.Done()
+	// }
+
+	// TODO: (FIXED) (watch for all nodepools to be deleted, prior to releasing finalizers)
 	return req.Finalize()
 }
 
@@ -174,13 +181,15 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 	// }
 
 	var nodes corev1.NodeList
-	if err := r.List(ctx, &nodes, &client.ListOptions{
-		LabelSelector: apiLabels.SelectorFromValidatedSet(
-			apiLabels.Set{
-				constants.RegionKey: obj.Spec.EdgeRef,
-			},
-		),
-	}); err != nil {
+	if err := r.List(
+		ctx, &nodes, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(
+				apiLabels.Set{
+					constants.RegionKey: obj.Spec.EdgeRef,
+				},
+			),
+		},
+	); err != nil {
 		if !apiErrors.IsNotFound(err) {
 			return req.CheckFailed(AccountNodesReady, check, err.Error())
 		}
@@ -211,14 +220,16 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		Nodes: func() []rcalculate.Node {
 			rk := make([]rcalculate.Node, 0)
 			for _, n := range nodes.Items {
-				rk = append(rk, rcalculate.Node{
-					Name:     n.Name,
-					Stateful: n.GetLabels()["kloudlite.io/stateful-node"] == "true",
-					Size: rcalculate.Size{
-						Memory: n.Status.Allocatable.Memory().String(),
-						Cpu:    n.Status.Allocatable.Cpu().String(),
+				rk = append(
+					rk, rcalculate.Node{
+						Name:     n.Name,
+						Stateful: n.GetLabels()["kloudlite.io/stateful-node"] == "true",
+						Size: rcalculate.Size{
+							Memory: n.Status.Allocatable.Memory().String(),
+							Cpu:    n.Status.Allocatable.Cpu().String(),
+						},
 					},
-				})
+				)
 			}
 			return rk
 		}(),
@@ -324,12 +335,14 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 				cnt := i.GetStatefulCount()
 				for _, n := range nodes.Items {
 					if n.GetLabels()["kloudlite.io/node-index"] == fmt.Sprint(cnt) {
-						ctrl.CreateOrUpdate(ctx, r.Client, &n, func() error {
-							l := n.GetLabels()
-							l["kloudlite.io/stateful-node"] = "true"
-							n.SetLabels(l)
-							return nil
-						})
+						ctrl.CreateOrUpdate(
+							ctx, r.Client, &n, func() error {
+								l := n.GetLabels()
+								l["kloudlite.io/stateful-node"] = "true"
+								n.SetLabels(l)
+								return nil
+							},
+						)
 
 						break
 					}

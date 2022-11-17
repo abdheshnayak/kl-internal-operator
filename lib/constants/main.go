@@ -47,6 +47,7 @@ var (
 const (
 	AccountRef string = "kloudlite.io/account-ref"
 	ProjectRef string = "kloudlite.io/project-ref"
+	EdgeRef    string = "kloudlite.io/edge-ref"
 
 	ProjectNameKey       string = "kloudlite.io/project.name"
 	MsvcNameKey          string = "kloudlite.io/msvc.name"

@@ -47,9 +47,13 @@ const (
 	TOKEN_NS = "kl-core"
 )
 
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes/finalizers,verbs=update
+const (
+	KloudliteNs = "kl-core"
+)
+
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes/finalizers,verbs=update
 
 func (r *AccountNodeReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ctrl.Result, error) {
 
@@ -96,13 +100,44 @@ func (r *AccountNodeReconciler) Reconcile(ctx context.Context, oReq ctrl.Request
 }
 
 func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]) rApi.StepResult {
-
+	ctx, obj := req.Context(), req.Object
 	var cs []metav1.Condition
+
+	createJob, err := rApi.Get(
+		req.Context(), r.Client, types.NamespacedName{
+			Name:      req.Object.Name,
+			Namespace: JOB_NS,
+		}, &batchv1.Job{},
+	)
+	if err != nil {
+		if !apiErrors.IsNotFound(err) {
+			return req.FailWithStatusError(err)
+		}
+		createJob = nil
+	}
+
+	if createJob != nil {
+		if createJob.Status.Active > 0 {
+			obj.Status.Conditions = append(
+				obj.Status.Conditions,
+				conditions.New(
+					"CreateJobFound",
+					true,
+					"WaitingToFinish",
+					"Creation job already exists, waiting to create deletion job",
+				),
+			)
+			if err := r.Update(ctx, obj); err != nil {
+				return req.FailWithStatusError(err)
+			}
+			return req.Done()
+		}
+	}
 
 	// check if deletion job created, if created and completed remove finalizers
 	if err, done := func() (error, bool) {
-
-		job, err := rApi.Get(req.Context(),
+		job, err := rApi.Get(
+			req.Context(),
 			r.Client,
 			types.NamespacedName{
 				Name:      fmt.Sprintf("delete-%s", req.Object.Name),
@@ -112,13 +147,15 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 		)
 
 		if err != nil {
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"DeleteJobFound",
 					false,
 					"NotFound",
 					"Delete Job not created yet",
-				))
+				),
+			)
 			return nil, false
 		}
 
@@ -151,57 +188,56 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 		return req.Finalize()
 	}
 
-	// finding provider
-	if err := func() error {
-		provider, err := rApi.Get(req.Context(),
-			r.Client,
-			types.NamespacedName{
-				Name: req.Object.Spec.EdgeRef,
-			},
-			&infrav1.Edge{},
-		)
-
-		if err != nil {
-			if !apiErrors.IsNotFound(err) {
-				return err
-			}
-
-			return fmt.Errorf("provider not found")
-		}
-
-		rApi.SetLocal(req, "provider", provider)
-		return nil
-	}(); err != nil {
-		return req.FailWithStatusError(err)
-	}
+	// finding edge
+	// if err := func() error {
+	// 	edge, err := rApi.Get(
+	// 		req.Context(),
+	// 		r.Client,
+	// 		types.NamespacedName{
+	// 			Name: req.Object.Spec.EdgeRef,
+	// 		},
+	// 		&infrav1.Edge{},
+	// 	)
+	//
+	// 	if err != nil {
+	// 		if !apiErrors.IsNotFound(err) {
+	// 			return err
+	// 		}
+	// 		return fmt.Errorf("edge not found")
+	// 	}
+	//
+	// 	rApi.SetLocal(req, "edge", edge)
+	// 	return nil
+	// }(); err != nil {
+	// 	return req.FailWithStatusError(err)
+	// }
 
 	// get provider secrets
 	if err := func() error {
-		if !rApi.HasLocal(req, "provider") {
-			return nil
-		}
+		// if !rApi.HasLocal(req, "provider") {
+		// 	return nil
+		// }
+		//
+		// provider, ok := rApi.GetLocal[*infrav1.Edge](req, "provider")
+		// if !ok {
+		// 	fmt.Println("error fetching provider")
+		// 	return nil
+		// }
 
-		provider, ok := rApi.GetLocal[*infrav1.Edge](req, "provider")
-		if !ok {
-			fmt.Println("error fetching provider")
-			return nil
-		}
-
-		secret, err := rApi.Get(req.Context(),
+		secret, err := rApi.Get(
+			req.Context(),
 			r.Client,
 			types.NamespacedName{
-				Name:      provider.Spec.CredentialsRef.SecretName,
-				Namespace: provider.Spec.CredentialsRef.Namespace,
+				Name:      obj.Spec.ProviderRef,
+				Namespace: KloudliteNS,
 			},
 			&corev1.Secret{},
 		)
 
 		if err != nil {
-
 			if !apiErrors.IsNotFound(err) {
 				return err
 			}
-
 			return fmt.Errorf("provider secret not found")
 		}
 
@@ -215,9 +251,11 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 	// if deletion job not created create it
 	if err := func() error {
 
-		if _, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-			Name: fmt.Sprintf("kl-byoc-%s", req.Object.Name),
-		}, &corev1.Node{}); err != nil {
+		if _, err := rApi.Get(
+			req.Context(), r.Client, types.NamespacedName{
+				Name: fmt.Sprintf("kl-byoc-%s", req.Object.Name),
+			}, &corev1.Node{},
+		); err != nil {
 			if !apiErrors.IsNotFound(err) {
 				return err
 			}
@@ -349,16 +387,18 @@ func (r *AccountNodeReconciler) finalize(req *rApi.Request[*infrav1.AccountNode]
 
 		}
 
-		b, err = templates.Parse(templates.CreateNode, map[string]any{
-			"name":       fmt.Sprintf("delete-%s", req.Object.Name),
-			"namespace":  JOB_NS,
-			"labels":     req.Object.GetEnsuredLabels(),
-			"taints":     []string{},
-			"nodeConfig": base64C,
-			"klConfig":   base64K,
-			"provider":   req.Object.Spec.Provider,
-			"owner-refs": []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
-		})
+		b, err = templates.Parse(
+			templates.CreateNode, map[string]any{
+				"name":       fmt.Sprintf("delete-%s", req.Object.Name),
+				"namespace":  JOB_NS,
+				"labels":     req.Object.GetEnsuredLabels(),
+				"taints":     []string{},
+				"nodeConfig": base64C,
+				"klConfig":   base64K,
+				"provider":   req.Object.Spec.Provider,
+				"owner-refs": []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
+			},
+		)
 
 		if err != nil {
 			return err
@@ -398,7 +438,8 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 
 	// finding Cluster Secret
 	if err := func() error {
-		secret, err := rApi.Get(req.Context(),
+		secret, err := rApi.Get(
+			req.Context(),
 			r.Client,
 			types.NamespacedName{
 				Name:      "cluster-secret",
@@ -415,7 +456,8 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 
 			isReady = false
 
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"ClusterSecretFound",
 					false,
@@ -432,7 +474,8 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 		if string(clusterSecret) == "" {
 			isReady = false
 
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"ClsutercSecretFound",
 					false,
@@ -449,72 +492,73 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 		return req.FailWithStatusError(err)
 	}
 
-	// finding provider
-	if err := func() error {
-		provider, err := rApi.Get(req.Context(),
-			r.Client,
-			types.NamespacedName{
-				Name: req.Object.Spec.EdgeRef,
-			},
-			&infrav1.Edge{},
-		)
+	// // finding provider
+	// if err := func() error {
+	// 	provider, err := rApi.Get(
+	// 		req.Context(),
+	// 		r.Client,
+	// 		types.NamespacedName{
+	// 			Name: req.Object.Spec.EdgeRef,
+	// 		},
+	// 		&infrav1.Edge{},
+	// 	)
+	//
+	// 	if err != nil {
+	//
+	// 		if !apiErrors.IsNotFound(err) {
+	// 			return err
+	// 		}
+	//
+	// 		isReady = false
+	//
+	// 		cs = append(
+	// 			cs,
+	// 			conditions.New(
+	// 				"ProviderFound",
+	// 				false,
+	// 				"NotFound",
+	// 				"Provider not found",
+	// 			),
+	// 		)
+	//
+	// 		return nil
+	// 	}
 
-		if err != nil {
-
-			if !apiErrors.IsNotFound(err) {
-				return err
-			}
-
-			isReady = false
-
-			cs = append(cs,
-				conditions.New(
-					"ProviderFound",
-					false,
-					"NotFound",
-					"Provider not found",
-				),
-			)
-
-			return nil
-		}
-
-		rApi.SetLocal(req, "provider", provider)
-		return nil
-	}(); err != nil {
-		return req.FailWithStatusError(err)
-	}
+	// rApi.SetLocal(req, "provider", provider)
+	// 	return nil
+	// }(); err != nil {
+	// 	return req.FailWithStatusError(err)
+	// }
 
 	// get provider secrets
 	if err := func() error {
-		if !rApi.HasLocal(req, "provider") {
-			return nil
-		}
+		// if !rApi.HasLocal(req, "provider") {
+		// 	return nil
+		// }
 
-		provider, ok := rApi.GetLocal[*infrav1.Edge](req, "provider")
-		if !ok {
-			fmt.Println("error fetching provider")
-			return nil
-		}
+		// provider, ok := rApi.GetLocal[*infrav1.Edge](req, "provider")
+		// if !ok {
+		// 	fmt.Println("error fetching provider")
+		// 	return nil
+		// }
 
-		secret, err := rApi.Get(req.Context(),
+		secret, err := rApi.Get(
+			req.Context(),
 			r.Client,
 			types.NamespacedName{
-				Name:      provider.Spec.CredentialsRef.SecretName,
-				Namespace: provider.Spec.CredentialsRef.Namespace,
+				Name:      req.Object.Spec.ProviderRef,
+				Namespace: KloudliteNS,
 			},
 			&corev1.Secret{},
 		)
 
 		if err != nil {
-
 			if !apiErrors.IsNotFound(err) {
 				return err
 			}
-
 			isReady = false
-
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"SecretFound",
 					false,
@@ -535,11 +579,12 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 
 	// check node present and ready TODO: Ready check not implemented now
 	if err := func() error {
-		if !rApi.HasLocal(req, "provider") || !rApi.HasLocal(req, "secret") {
+		if !rApi.HasLocal(req, "secret") {
 			return nil
 		}
 
-		_, err := rApi.Get(req.Context(),
+		_, err := rApi.Get(
+			req.Context(),
 			r.Client,
 			types.NamespacedName{
 				Name: fmt.Sprintf("kl-byoc-%s", req.Object.Name),
@@ -555,7 +600,8 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 
 			isReady = false
 
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"NodeFound",
 					false,
@@ -567,7 +613,13 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			return nil
 		}
 
-		if _, err := functions.ExecCmd(fmt.Sprintf("kubectl taint nodes kl-byoc-%s kloudlite.io/region=%s:NoExecute --overwrite", req.Object.Name, req.Object.Spec.EdgeRef), ""); err != nil {
+		if _, err := functions.ExecCmd(
+			fmt.Sprintf(
+				"kubectl taint nodes kl-byoc-%s kloudlite.io/region=%s:NoExecute --overwrite",
+				req.Object.Name,
+				req.Object.Spec.EdgeRef,
+			), "",
+		); err != nil {
 			return err
 		}
 
@@ -583,11 +635,12 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 	// check if job created
 	if err := func() error {
 
-		if !rApi.HasLocal(req, "provider") || !rApi.HasLocal(req, "secret") {
+		if !rApi.HasLocal(req, "secret") {
 			return nil
 		}
 
-		job, err := rApi.Get(req.Context(),
+		job, err := rApi.Get(
+			req.Context(),
 			r.Client,
 			types.NamespacedName{
 				Name:      req.Object.Name,
@@ -610,7 +663,8 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 
 			isReady = false
 
-			cs = append(cs,
+			cs = append(
+				cs,
 				conditions.New(
 					"JobFound",
 					false,
@@ -664,7 +718,8 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 				doNodeConfig.ImageId == "" {
 				isReady = false
 
-				cs = append(cs,
+				cs = append(
+					cs,
 					conditions.New(
 						"ConfigsAvailable",
 						false,
@@ -690,7 +745,8 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 			if awsNodeConfig.InstanceType == "" {
 				isReady = false
 
-				cs = append(cs,
+				cs = append(
+					cs,
 					conditions.New(
 						"ConfigsAvailable",
 						false,
@@ -726,7 +782,6 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 	}
 
 	return req.Done()
-
 }
 
 func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.AccountNode]) rApi.StepResult {
@@ -784,9 +839,12 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 			// s = append(s, fmt.Sprintf("kloudlite.io/account=%s:NoExecute", req.Object.Spec.AccountRef))
 			// s = append(s, fmt.Sprintf("kloudlite.io/provider=%s:NoExecute", req.Object.Spec.Provider))
 
-			s = append(s,
-				fmt.Sprintf("kloudlite.io/acc-edge-ref=%s:NoExecute",
-					req.Object.Spec.EdgeRef),
+			s = append(
+				s,
+				fmt.Sprintf(
+					"kloudlite.io/acc-edge-ref=%s:NoExecute",
+					req.Object.Spec.EdgeRef,
+				),
 			)
 			return s
 		}()
@@ -882,13 +940,15 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 		}
 
 		var nodes corev1.NodeList
-		if err = r.List(ctx, &nodes, &client.ListOptions{
-			LabelSelector: apiLabels.SelectorFromValidatedSet(
-				apiLabels.Set{
-					constants.NodePoolKey: req.Object.Name,
-				},
-			),
-		}); err != nil {
+		if err = r.List(
+			ctx, &nodes, &client.ListOptions{
+				LabelSelector: apiLabels.SelectorFromValidatedSet(
+					apiLabels.Set{
+						constants.NodePoolKey: req.Object.Name,
+					},
+				),
+			},
+		); err != nil {
 			if !apiErrors.IsNotFound(err) {
 				return err
 			}
@@ -898,16 +958,18 @@ func (r *AccountNodeReconciler) reconcileOperations(req *rApi.Request[*infrav1.A
 
 		l["kloudlite.io/node-index"] = fmt.Sprintf("%d", req.Object.Spec.Index)
 
-		b, err := templates.Parse(templates.CreateNode, map[string]any{
-			"name":       req.Object.Name,
-			"namespace":  "kl-core",
-			"labels":     req.Object.GetEnsuredLabels(),
-			"taints":     taints,
-			"nodeConfig": base64C,
-			"klConfig":   base64K,
-			"provider":   req.Object.Spec.Provider,
-			"owner-refs": []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
-		})
+		b, err := templates.Parse(
+			templates.CreateNode, map[string]any{
+				"name":       req.Object.Name,
+				"namespace":  "kl-core",
+				"labels":     req.Object.GetEnsuredLabels(),
+				"taints":     taints,
+				"nodeConfig": base64C,
+				"klConfig":   base64K,
+				"provider":   req.Object.Spec.Provider,
+				"owner-refs": []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
+			},
+		)
 
 		// fmt.Println(string(b))
 
@@ -940,17 +1002,19 @@ func (r *AccountNodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.AccountNode{}).
 		Owns(&batchv1.Job{}).
-		Watches(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(
-			func(o client.Object) []reconcile.Request {
-				l, ok := o.GetLabels()["kloudlite.io/account-node.name"]
-				if !ok {
-					return nil
-				}
+		Watches(
+			&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(
+				func(o client.Object) []reconcile.Request {
+					l, ok := o.GetLabels()["kloudlite.io/account-node.name"]
+					if !ok {
+						return nil
+					}
 
-				return []reconcile.Request{{NamespacedName: types.NamespacedName{
-					Name: l,
-				}}}
-			},
-		)).
+					return []reconcile.Request{{NamespacedName: types.NamespacedName{
+						Name: l,
+					}}}
+				},
+			),
+		).
 		Complete(r)
 }

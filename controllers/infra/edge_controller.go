@@ -35,13 +35,14 @@ type EdgeReconciler struct {
 }
 
 const (
-	RegionReady string = "region-ready"
-	PoolReady   string = "pool-ready"
+	RegionReady     string = "region-ready"
+	PoolReady       string = "pool-ready"
+	DefaultsPatched string = "defaults-patched"
 )
 
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=edges,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=edges/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=edges/finalizers,verbs=update
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=edges,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=edges/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=edges/finalizers,verbs=update
 
 func (r *EdgeReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
 
@@ -79,6 +80,10 @@ func (r *EdgeReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 		return step.ReconcilerResponse()
 	}
 
+	if step := r.PatchDefaults(req); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
+
 	if step := r.reconRegion(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
 	}
@@ -92,13 +97,36 @@ func (r *EdgeReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 	return ctrl.Result{RequeueAfter: ReconcilationPeriod * time.Second}, r.Status().Update(ctx, req.Object)
 }
 
+func (r *EdgeReconciler) PatchDefaults(req *rApi.Request[*infrav1.Edge]) stepResult.Result {
+	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
+	check := rApi.Check{Generation: obj.Generation}
+
+	cloudProvider, err := rApi.Get(ctx, r.Client, functions.NN("", obj.Spec.CredentialsRef.SecretName), &infrav1.CloudProvider{})
+	if err != nil {
+		return req.CheckFailed(DefaultsPatched, check, err.Error()).Err(nil)
+	}
+
+	if !functions.IsOwner(obj, functions.AsOwner(cloudProvider)) {
+		obj.SetOwnerReferences(append(obj.GetOwnerReferences(), functions.AsOwner(cloudProvider, true)))
+		if err := r.Update(ctx, obj); err != nil {
+			return req.CheckFailed(DefaultsPatched, check, err.Error())
+		}
+		return req.Done().RequeueAfter(1 * time.Second)
+	}
+
+	check.Status = true
+	if check != checks[DefaultsPatched] {
+		checks[DefaultsPatched] = check
+		return req.UpdateStatus()
+	}
+	return req.Next()
+}
+
 func (r *EdgeReconciler) reconRegion(req *rApi.Request[*infrav1.Edge]) stepResult.Result {
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
 
-	reg, err := rApi.Get(ctx, r.Client, types.NamespacedName{
-		Name: req.Object.Name,
-	}, &managementv1.Region{})
+	reg, err := rApi.Get(ctx, r.Client, types.NamespacedName{Name: req.Object.Name}, &managementv1.Region{})
 
 	if err != nil {
 		if !apiErrors.IsNotFound(err) {
@@ -127,11 +155,15 @@ func (r *EdgeReconciler) reconPool(req *rApi.Request[*infrav1.Edge]) stepResult.
 	check := rApi.Check{Generation: obj.Generation}
 
 	var nodePools infrav1.NodePoolList
-	err := r.Client.List(ctx, &nodePools, &client.ListOptions{
-		LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{
-			"kloudlite.io/edge-ref": req.Object.Name,
-		}),
-	})
+	err := r.Client.List(
+		ctx, &nodePools, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(
+				apiLabels.Set{
+					"kloudlite.io/edge-ref": req.Object.Name,
+				},
+			),
+		},
+	)
 
 	if err != nil {
 		if !apiErrors.IsNotFound(err) {
@@ -180,11 +212,13 @@ func (r *EdgeReconciler) reconPool(req *rApi.Request[*infrav1.Edge]) stepResult.
 
 func (r *EdgeReconciler) applyRegion(req *rApi.Request[*infrav1.Edge]) error {
 
-	if b, err := templates.Parse(templates.Region, map[string]any{
-		"name":     req.Object.Name,
-		"account":  req.Object.Spec.AccountId,
-		"provider": req.Object.Spec.Provider,
-	}); err != nil {
+	if b, err := templates.Parse(
+		templates.Region, map[string]any{
+			"name":     req.Object.Name,
+			"account":  req.Object.Spec.AccountId,
+			"provider": req.Object.Spec.Provider,
+		},
+	); err != nil {
 		return err
 	} else if _, err = functions.KubectlApplyExec(b); err != nil {
 		return err
@@ -194,31 +228,35 @@ func (r *EdgeReconciler) applyRegion(req *rApi.Request[*infrav1.Edge]) error {
 }
 
 func (r *EdgeReconciler) UpdatePool(req *rApi.Request[*infrav1.Edge]) error {
-	b, err := templates.Parse(templates.NodePools, map[string]any{"pools": func() []infrav1.NodePool {
-		pls := make([]infrav1.NodePool, 0)
-		for _, p := range req.Object.Spec.Pools {
+	b, err := templates.Parse(
+		templates.NodePools, map[string]any{"pools": func() []infrav1.NodePool {
+			pls := make([]infrav1.NodePool, 0)
+			for _, p := range req.Object.Spec.Pools {
 
-			pls = append(pls, infrav1.NodePool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            fmt.Sprintf("%s-%s", req.Object.Name, p.Name),
-					OwnerReferences: []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
-					Labels:          req.Object.GetEnsuredLabels(),
-				},
-				Spec: infrav1.NodePoolSpec{
-					ProviderRef: req.Object.Spec.CredentialsRef.SecretName,
-					AccountRef:  req.Object.Spec.AccountId,
-					EdgeRef:     req.Object.Name,
-					Provider:    req.Object.Spec.Provider,
-					Region:      req.Object.Spec.Region,
-					Config:      p.Config,
-					Min:         p.Min,
-					Max:         p.Max,
-				},
-			})
-		}
-		return pls
-	}(),
-	})
+				pls = append(
+					pls, infrav1.NodePool{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            fmt.Sprintf("%s-%s", req.Object.Name, p.Name),
+							OwnerReferences: []metav1.OwnerReference{functions.AsOwner(req.Object, true)},
+							Labels:          req.Object.GetEnsuredLabels(),
+						},
+						Spec: infrav1.NodePoolSpec{
+							ProviderRef: req.Object.Spec.CredentialsRef.SecretName,
+							AccountRef:  req.Object.Spec.AccountId,
+							EdgeRef:     req.Object.Name,
+							Provider:    req.Object.Spec.Provider,
+							Region:      req.Object.Spec.Region,
+							Config:      p.Config,
+							Min:         p.Min,
+							Max:         p.Max,
+						},
+					},
+				)
+			}
+			return pls
+		}(),
+		},
+	)
 
 	if err != nil {
 		return err
@@ -235,44 +273,84 @@ func (r *EdgeReconciler) UpdatePool(req *rApi.Request[*infrav1.Edge]) error {
 
 func (r *EdgeReconciler) finalize(req *rApi.Request[*infrav1.Edge]) stepResult.Result {
 	// check and delete region
-	if err := func() error {
-		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-			Name: req.Object.Name,
-		}, &managementv1.Region{})
+	// if err := func() error {
+	// 	_, err := rApi.Get(
+	// 		req.Context(), r.Client, types.NamespacedName{
+	// 			Name: req.Object.Name,
+	// 		}, &managementv1.Region{},
+	// 	)
+	//
+	// 	if err != nil {
+	// 		if !apiErrors.IsNotFound(err) {
+	// 			return err
+	// 		}
+	// 		return nil
+	// 	}
+	//
+	// 	return r.Delete(req.Context(), req.Object)
+	//
+	// }(); err != nil {
+	// 	return req.FailWithStatusError(err)
+	// }
 
-		if err != nil {
-			if !apiErrors.IsNotFound(err) {
-				return err
-			}
-			return nil
-		}
+	checkName := "NodePoolsDeleted"
 
-		return r.Delete(req.Context(), req.Object)
+	check := rApi.Check{Generation: req.Object.Generation}
 
-	}(); err != nil {
-		return req.FailWithStatusError(err)
+	var nodePools infrav1.NodePoolList
+	if err := r.List(
+		req.Context(), &nodePools, &client.ListOptions{
+			LabelSelector: apiLabels.SelectorFromValidatedSet(
+				map[string]string{
+					constants.EdgeRef: req.Object.Name,
+				},
+			),
+		},
+	); err != nil {
+		return req.CheckFailed(checkName, check, err.Error())
 	}
+
+	if len(nodePools.Items) != 0 {
+		return req.Done()
+	}
+
+	// np, err := rApi.Get(
+	// 	req.Context(), r.Client, types.NamespacedName{
+	// 		Name: req.Object.Name,
+	// 	}, &infrav1.NodePool{},
+	// )
+	// if err != nil {
+	// 	if apiErrors.IsNotFound(err) {
+	// 		return req.Finalize()
+	// 	}
+	// }
+	//
+	// if err := r.Delete(ctx, np); err != nil {
+	// 	return req.CheckFailed("NodePoolDeleted", rApi.Check{Generation: req.Object.Generation}, err.Error())
+	// }
 
 	// check is pool present
-	if err := func() error {
+	// if err := func() error {
+	// 	_, err := rApi.Get(
+	// 		req.Context(), r.Client, types.NamespacedName{
+	// 			Name: req.Object.Name,
+	// 		}, &infrav1.NodePool{},
+	// 	)
+	//
+	// 	if err != nil {
+	// 		if !apiErrors.IsNotFound(err) {
+	// 			return err
+	// 		}
+	// 		return nil
+	// 	}
+	//
+	// 	_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool -l kloudlite.io/edge-ref", req.Object.Name), "")
+	// 	return err
+	// }(); err != nil {
+	// 	return req.FailWithStatusError(err)
+	// }
 
-		_, err := rApi.Get(req.Context(), r.Client, types.NamespacedName{
-			Name: req.Object.Name,
-		}, &infrav1.NodePool{})
-
-		if err != nil {
-			if !apiErrors.IsNotFound(err) {
-				return err
-			}
-			return nil
-		}
-
-		_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool -l kloudlite.io/edge-ref", req.Object.Name), "")
-		return err
-	}(); err != nil {
-		return req.FailWithStatusError(err)
-	}
-
+	// TODO: (watch for all nodepools to be deleted, prior to releasing finalizers)
 	return req.Finalize()
 }
 

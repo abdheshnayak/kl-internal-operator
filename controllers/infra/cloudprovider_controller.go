@@ -4,9 +4,11 @@ import (
 	"context"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	fn "operators.kloudlite.io/lib/functions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -30,12 +32,15 @@ const (
 	EdgesDeleted string = "edges-deleted"
 )
 
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=cloudproviders,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=cloudproviders/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=infra.kloudlite.io,resources=cloudproviders/finalizers,verbs=update
+const (
+	KloudliteNS = "kl-core"
+)
+
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=cloudproviders,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=cloudproviders/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infra.kloudlite.io,resources=cloudproviders/finalizers,verbs=update
 
 func (r *CloudProviderReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-
 	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &infrav1.CloudProvider{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -76,8 +81,7 @@ func (r *CloudProviderReconciler) Reconcile(ctx context.Context, request ctrl.Re
 }
 
 func (r *CloudProviderReconciler) finalize(req *rApi.Request[*infrav1.CloudProvider]) stepResult.Result {
-
-	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
+	ctx, obj := req.Context(), req.Object
 
 	check := rApi.Check{Generation: obj.Generation}
 
@@ -94,26 +98,38 @@ func (r *CloudProviderReconciler) finalize(req *rApi.Request[*infrav1.CloudProvi
 		}
 	}
 
-	if len(Edges.Items) >= 1 {
-		if err := r.DeleteAllOf(
-			ctx, &infrav1.Edge{}, &client.DeleteAllOfOptions{
-				ListOptions: client.ListOptions{
-					LabelSelector: apiLabels.SelectorFromValidatedSet(
-						map[string]string{
-							constants.ProviderRef: obj.Name,
-						},
-					),
-				},
-			},
-		); err != nil {
-			return req.CheckFailed(EdgesDeleted, check, err.Error())
-		}
-		checks[EdgesDeleted] = check
-		return req.UpdateStatus()
-	}
+	// if len(Edges.Items) >= 1 {
+	// 	if err := r.DeleteAllOf(
+	// 		ctx, &infrav1.Edge{}, &client.DeleteAllOfOptions{
+	// 			ListOptions: client.ListOptions{
+	// 				LabelSelector: apiLabels.SelectorFromValidatedSet(
+	// 					map[string]string{
+	// 						constants.ProviderRef: obj.Name,
+	// 					},
+	// 				),
+	// 			},
+	// 		},
+	// 	); err != nil {
+	// 		return req.CheckFailed(EdgesDeleted, check, err.Error())
+	// 	}
+	// 	checks[EdgesDeleted] = check
+	// 	return req.UpdateStatus()
+	// }
 
 	if len(Edges.Items) != 0 {
 		return req.Done()
+	}
+
+	scrt, err := rApi.Get(ctx, r.Client, fn.NN(KloudliteNS, obj.Name), &corev1.Secret{})
+	if err != nil {
+		if apiErrors.IsNotFound(err) {
+			return req.Finalize()
+		}
+		return req.CheckFailed(EdgesDeleted, check, err.Error())
+	}
+
+	if err := r.Delete(ctx, scrt); err != nil {
+		return req.CheckFailed(EdgesDeleted, check, err.Error())
 	}
 
 	// check and everything is deleted and delete secret

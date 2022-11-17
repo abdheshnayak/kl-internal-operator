@@ -28,13 +28,14 @@ type AccountNodeSpec struct {
 	Index int `json:"nodeIndex,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
-//+kubebuilder:printcolumn:name="Index",type="integer",JSONPath=".spec.nodeIndex",description="index of node"
-//+kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountRef",description="account"
-//+kubebuilder:printcolumn:name="Provider",type="string",JSONPath=".spec.provider",description="provider"
-//+kubebuilder:printcolumn:name="Region",type="string",JSONPath=".spec.region",description="region"
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Index",type="integer",JSONPath=".spec.nodeIndex",description="index of node"
+// +kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountRef",description="account"
+// +kubebuilder:printcolumn:name="Provider",type="string",JSONPath=".spec.provider",description="provider"
+// +kubebuilder:printcolumn:name="Region",type="string",JSONPath=".spec.region",description="region"
+// +kubebuilder:printcolumn:JSONPath=".metadata.creationTimestamp",name=Age,type=date
 
 // AccountNode is the Schema for the accountnodes API
 type AccountNode struct {
@@ -60,7 +61,7 @@ func (a *AccountNode) GetStatus() *rApi.Status {
 	return &a.Status
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // AccountNodeList contains a list of AccountNode
 type AccountNodeList struct {
