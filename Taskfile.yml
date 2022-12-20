@@ -69,13 +69,14 @@ tasks:
   yaml:operator:
     vars:
       Name: kloudlite-internal-operator
-      Image: registry.kloudlite.io/kloudlite/{{.EnvName}}/{{.Name}}:{{.Tag}}
-      Namespace: kl-core
-    preconditions:
-      - sh: test -n '{{.Tag}}'
-        msg: "var Tag must have a value"
-      - sh: test -n '{{.EnvName}}'
-        msg: "var EnvName must have a value"
+      # Image: registry.kloudlite.io/kloudlite/{{.EnvName}}/{{.Name}}:{{.Tag}}
+      Image: '{{printf "registry.kloudlite.io/kloudlite/{{.EnvName}}/%s:{{.ImageTag}}" .Name }}'
+      Namespace: '{{printf "{{.Namespace}}"}}'
+    # preconditions:
+    #   - sh: test -n '{{.Tag}}'
+    #     msg: "var Tag must have a value"
+    #   - sh: test -n '{{.EnvName}}'
+    #     msg: "var EnvName must have a value"
     cmds:
       - |+
         yamls=$(kustomize build config/default | yq 'select(.kind | [.] - ["Deployment", "Service", "ConfigMap"] | length > 0 | not)' -y)
