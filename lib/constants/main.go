@@ -70,6 +70,8 @@ const (
 	RegionKey      string = "kloudlite.io/region"
 	NodeIndex      string = "kloudlite.io/node-index"
 	NodeIps        string = "kloudlite.io/node-ips"
+
+	GroupVersionKind string = "kloudlite.io/group-version-kind"
 )
 
 var (

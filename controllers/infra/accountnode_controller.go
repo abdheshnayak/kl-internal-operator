@@ -714,8 +714,7 @@ func (r *AccountNodeReconciler) reconcileStatus(req *rApi.Request[*infrav1.Accou
 				return err
 			}
 
-			if doNodeConfig.Size == "" ||
-				doNodeConfig.ImageId == "" {
+			if doNodeConfig.Size == "" {
 				isReady = false
 
 				cs = append(

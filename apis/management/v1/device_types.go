@@ -2,6 +2,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"operators.kloudlite.io/lib/constants"
 	rApi "operators.kloudlite.io/lib/operator"
 )
 
@@ -40,7 +41,9 @@ type Device struct {
 }
 
 func (in *Device) GetEnsuredAnnotations() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		constants.GroupVersionKind: GroupVersion.WithKind("Device").String(),
+	}
 }
 
 func (d *Device) GetEnsuredLabels() map[string]string {

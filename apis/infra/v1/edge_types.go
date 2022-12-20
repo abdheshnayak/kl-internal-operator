@@ -2,6 +2,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"operators.kloudlite.io/lib/constants"
 	rApi "operators.kloudlite.io/lib/operator.v2"
 )
 
@@ -48,7 +49,9 @@ type Edge struct {
 }
 
 func (in *Edge) GetEnsuredAnnotations() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		constants.GroupVersionKind: GroupVersion.WithKind("Edge").String(),
+	}
 }
 
 func (a *Edge) GetEnsuredLabels() map[string]string {
