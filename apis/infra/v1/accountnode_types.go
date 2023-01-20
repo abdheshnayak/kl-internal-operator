@@ -46,6 +46,10 @@ type AccountNode struct {
 	Status rApi.Status     `json:"status,omitempty"`
 }
 
+func (a *AccountNode) GetEnsuredAnnotations() map[string]string {
+	return map[string]string{}
+}
+
 func (a *AccountNode) GetEnsuredLabels() map[string]string {
 	return map[string]string{
 		"kloudlite.io/account-node.name": a.Name,

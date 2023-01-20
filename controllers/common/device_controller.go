@@ -77,6 +77,9 @@ func (r *DeviceReconciler) Reconcile(ctx context.Context, oReq ctrl.Request) (ct
 		return x.Result(), x.Err()
 	}
 
+	if x := req.EnsureAnnotations(); !x.ShouldProceed() {
+		return x.Result(), x.Err()
+	}
 	if x := r.reconcileStatus(req); !x.ShouldProceed() {
 		return x.Result(), x.Err()
 	}

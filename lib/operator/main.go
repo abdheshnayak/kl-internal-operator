@@ -35,6 +35,7 @@ type Resource interface {
 	runtime.Object
 	GetStatus() *Status
 	GetEnsuredLabels() map[string]string
+	GetEnsuredAnnotations() map[string]string
 }
 
 type Request[T Resource] struct {
@@ -118,6 +119,26 @@ func (r *Request[T]) EnsureLabels() StepResult {
 
 	if !fn.MapContains(r.Object.GetLabels(), el) {
 		x := r.Object.GetLabels()
+		if x == nil {
+			x = map[string]string{}
+		}
+
+		for k, v := range el {
+			x[k] = v
+		}
+
+		return NewStepResult(&ctrl.Result{}, r.client.Update(r.ctx, r.Object))
+
+	}
+
+	return NewStepResult(nil, nil)
+}
+
+func (r *Request[T]) EnsureAnnotations() StepResult {
+	el := r.Object.GetEnsuredAnnotations()
+
+	if !fn.MapContains(r.Object.GetAnnotations(), el) {
+		x := r.Object.GetAnnotations()
 		if x == nil {
 			x = map[string]string{}
 		}
