@@ -1,9 +1,9 @@
 package v1
 
 import (
+	"github.com/kloudlite/internal_operator_v2/lib/constants"
+	rApi "github.com/kloudlite/internal_operator_v2/lib/operator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"operators.kloudlite.io/lib/constants"
-	rApi "operators.kloudlite.io/lib/operator"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!

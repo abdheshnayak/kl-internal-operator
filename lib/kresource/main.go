@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"operators.kloudlite.io/lib/functions"
+	"github.com/kloudlite/internal_operator_v2/lib/functions"
 )
 
 type Res struct {

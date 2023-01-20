@@ -16,8 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"operators.kloudlite.io/lib/constants"
-	"operators.kloudlite.io/lib/errors"
+	"github.com/kloudlite/internal_operator_v2/lib/constants"
+	"github.com/kloudlite/internal_operator_v2/lib/errors"
 )
 
 type statusConditions struct {

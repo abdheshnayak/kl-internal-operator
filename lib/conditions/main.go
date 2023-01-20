@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	fn "operators.kloudlite.io/lib/functions"
+	fn "github.com/kloudlite/internal_operator_v2/lib/functions"
 )
 
 func reasondiff(r1, r2 string) bool {

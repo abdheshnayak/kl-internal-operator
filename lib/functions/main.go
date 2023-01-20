@@ -19,7 +19,7 @@ import (
 
 	nanoid "github.com/matoous/go-nanoid/v2"
 
-	"operators.kloudlite.io/lib/errors"
+	"github.com/kloudlite/internal_operator_v2/lib/errors"
 )
 
 func NewBool(b bool) *bool {

@@ -8,8 +8,8 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"operators.kloudlite.io/env"
-	"operators.kloudlite.io/lib/logging"
+	"github.com/kloudlite/internal_operator_v2/env"
+	"github.com/kloudlite/internal_operator_v2/lib/logging"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -18,12 +18,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	managementv1 "operators.kloudlite.io/apis/management/v1"
-	account "operators.kloudlite.io/controllers/common/account"
+	managementv1 "github.com/kloudlite/internal_operator_v2/apis/management/v1"
+	account "github.com/kloudlite/internal_operator_v2/controllers/common/account"
 
-	infrav1 "operators.kloudlite.io/apis/infra/v1"
-	commoncontroller "operators.kloudlite.io/controllers/common"
-	infracontrollers "operators.kloudlite.io/controllers/infra"
+	infrav1 "github.com/kloudlite/internal_operator_v2/apis/infra/v1"
+	commoncontroller "github.com/kloudlite/internal_operator_v2/controllers/common"
+	infracontrollers "github.com/kloudlite/internal_operator_v2/controllers/infra"
 	// +kubebuilder:scaffold:imports
 )
 

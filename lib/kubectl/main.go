@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"operators.kloudlite.io/lib/errors"
+	"github.com/kloudlite/internal_operator_v2/lib/errors"
 )
 
 type batchable string

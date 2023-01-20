@@ -4,19 +4,19 @@ import (
 	"context"
 	"time"
 
+	fn "github.com/kloudlite/internal_operator_v2/lib/functions"
 	corev1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	fn "operators.kloudlite.io/lib/functions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1 "operators.kloudlite.io/apis/infra/v1"
-	"operators.kloudlite.io/lib/constants"
-	"operators.kloudlite.io/lib/logging"
-	rApi "operators.kloudlite.io/lib/operator.v2"
-	stepResult "operators.kloudlite.io/lib/operator.v2/step-result"
+	infrav1 "github.com/kloudlite/internal_operator_v2/apis/infra/v1"
+	"github.com/kloudlite/internal_operator_v2/lib/constants"
+	"github.com/kloudlite/internal_operator_v2/lib/logging"
+	rApi "github.com/kloudlite/internal_operator_v2/lib/operator.v2"
+	stepResult "github.com/kloudlite/internal_operator_v2/lib/operator.v2/step-result"
 )
 
 // CloudProviderReconciler reconciles a CloudProvider object

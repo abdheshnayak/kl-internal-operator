@@ -11,11 +11,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"operators.kloudlite.io/lib/conditions"
-	"operators.kloudlite.io/lib/constants"
-	fn "operators.kloudlite.io/lib/functions"
-	"operators.kloudlite.io/lib/logger"
-	rawJson "operators.kloudlite.io/lib/raw-json"
+	"github.com/kloudlite/internal_operator_v2/lib/conditions"
+	"github.com/kloudlite/internal_operator_v2/lib/constants"
+	fn "github.com/kloudlite/internal_operator_v2/lib/functions"
+	"github.com/kloudlite/internal_operator_v2/lib/logger"
+	rawJson "github.com/kloudlite/internal_operator_v2/lib/raw-json"
 )
 
 // +kubebuilder:object:generate=true

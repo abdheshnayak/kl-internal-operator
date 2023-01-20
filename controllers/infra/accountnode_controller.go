@@ -13,11 +13,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	"operators.kloudlite.io/lib/conditions"
-	"operators.kloudlite.io/lib/constants"
-	"operators.kloudlite.io/lib/functions"
-	rApi "operators.kloudlite.io/lib/operator"
-	"operators.kloudlite.io/lib/templates"
+	"github.com/kloudlite/internal_operator_v2/lib/conditions"
+	"github.com/kloudlite/internal_operator_v2/lib/constants"
+	"github.com/kloudlite/internal_operator_v2/lib/functions"
+	rApi "github.com/kloudlite/internal_operator_v2/lib/operator"
+	"github.com/kloudlite/internal_operator_v2/lib/templates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -26,13 +26,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	"sigs.k8s.io/yaml"
 
+	infrav1 "github.com/kloudlite/internal_operator_v2/apis/infra/v1"
+	"github.com/kloudlite/internal_operator_v2/env"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	infrav1 "operators.kloudlite.io/apis/infra/v1"
-	"operators.kloudlite.io/env"
 )
 
 // AccountNodeReconciler reconciles a AccountNode object

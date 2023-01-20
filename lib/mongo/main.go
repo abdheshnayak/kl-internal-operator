@@ -2,11 +2,11 @@ package mongo
 
 import (
 	"context"
+	"github.com/kloudlite/internal_operator_v2/lib/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"operators.kloudlite.io/lib/errors"
 )
 
 type Client struct {

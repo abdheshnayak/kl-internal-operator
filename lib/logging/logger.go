@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/fatih/color"
+	"github.com/kloudlite/internal_operator_v2/lib/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"operators.kloudlite.io/lib/errors"
 )
 
 type Logger interface {

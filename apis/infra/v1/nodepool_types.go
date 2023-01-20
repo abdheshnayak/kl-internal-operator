@@ -1,8 +1,8 @@
 package v1
 
 import (
+	rApi "github.com/kloudlite/internal_operator_v2/lib/operator.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	rApi "operators.kloudlite.io/lib/operator.v2"
 )
 
 // NodePoolSpec defines the desired state of NodePool

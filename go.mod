@@ -1,4 +1,4 @@
-module operators.kloudlite.io
+module github.com/kloudlite/internal_operator_v2
 
 go 1.18
 
@@ -10,7 +10,6 @@ require (
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.18.1
 	github.com/seancfoley/ipaddress-go v1.2.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/yext/yerrors v0.0.0-20201026182705-b30cf71caa54

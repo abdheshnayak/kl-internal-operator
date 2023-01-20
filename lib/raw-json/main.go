@@ -3,7 +3,7 @@ package raw_json
 import (
 	"encoding/json"
 
-	"operators.kloudlite.io/lib/errors"
+	"github.com/kloudlite/internal_operator_v2/lib/errors"
 )
 
 // +kubebuilder:pruning:PreserveUnknownFields

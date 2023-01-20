@@ -9,8 +9,8 @@ import (
 	"os/exec"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/kloudlite/internal_operator_v2/lib/errors"
 	"go.uber.org/fx"
-	"operators.kloudlite.io/lib/errors"
 	"sigs.k8s.io/yaml"
 )
 

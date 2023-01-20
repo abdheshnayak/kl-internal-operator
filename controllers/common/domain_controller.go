@@ -12,15 +12,15 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	managementv1 "operators.kloudlite.io/apis/management/v1"
-	"operators.kloudlite.io/env"
+	managementv1 "github.com/kloudlite/internal_operator_v2/apis/management/v1"
+	"github.com/kloudlite/internal_operator_v2/env"
 
-	"operators.kloudlite.io/lib/constants"
-	"operators.kloudlite.io/lib/logging"
-	"operators.kloudlite.io/lib/nameserver"
+	"github.com/kloudlite/internal_operator_v2/lib/constants"
+	"github.com/kloudlite/internal_operator_v2/lib/logging"
+	"github.com/kloudlite/internal_operator_v2/lib/nameserver"
 
-	rApi "operators.kloudlite.io/lib/operator.v2"
-	stepResult "operators.kloudlite.io/lib/operator.v2/step-result"
+	rApi "github.com/kloudlite/internal_operator_v2/lib/operator.v2"
+	stepResult "github.com/kloudlite/internal_operator_v2/lib/operator.v2/step-result"
 )
 
 // DomainReconciler reconciles a Domain object

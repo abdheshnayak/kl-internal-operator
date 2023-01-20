@@ -12,11 +12,15 @@ import (
 	apiLabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"operators.kloudlite.io/env"
-	"operators.kloudlite.io/lib/constants"
-	"operators.kloudlite.io/lib/nameserver"
-	"operators.kloudlite.io/lib/templates"
+	"github.com/kloudlite/internal_operator_v2/env"
+	"github.com/kloudlite/internal_operator_v2/lib/constants"
+	"github.com/kloudlite/internal_operator_v2/lib/nameserver"
+	"github.com/kloudlite/internal_operator_v2/lib/templates"
 
+	"github.com/kloudlite/internal_operator_v2/lib/conditions"
+	"github.com/kloudlite/internal_operator_v2/lib/functions"
+	rApi "github.com/kloudlite/internal_operator_v2/lib/operator"
+	"github.com/kloudlite/internal_operator_v2/lib/wireguard"
 	"github.com/seancfoley/ipaddress-go/ipaddr"
 	corev1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,17 +28,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"operators.kloudlite.io/lib/conditions"
-	"operators.kloudlite.io/lib/functions"
-	rApi "operators.kloudlite.io/lib/operator"
-	"operators.kloudlite.io/lib/wireguard"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	managementv1 "operators.kloudlite.io/apis/management/v1"
+	managementv1 "github.com/kloudlite/internal_operator_v2/apis/management/v1"
 )
 
 // DeviceReconciler reconciles a Device object

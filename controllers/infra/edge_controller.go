@@ -10,20 +10,20 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	"operators.kloudlite.io/lib/constants"
-	"operators.kloudlite.io/lib/functions"
-	"operators.kloudlite.io/lib/logging"
-	"operators.kloudlite.io/lib/templates"
+	"github.com/kloudlite/internal_operator_v2/lib/constants"
+	"github.com/kloudlite/internal_operator_v2/lib/functions"
+	"github.com/kloudlite/internal_operator_v2/lib/logging"
+	"github.com/kloudlite/internal_operator_v2/lib/templates"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	managementv1 "github.com/kloudlite/internal_operator_v2/apis/management/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	managementv1 "operators.kloudlite.io/apis/management/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	infrav1 "operators.kloudlite.io/apis/infra/v1"
+	infrav1 "github.com/kloudlite/internal_operator_v2/apis/infra/v1"
 
-	rApi "operators.kloudlite.io/lib/operator.v2"
-	stepResult "operators.kloudlite.io/lib/operator.v2/step-result"
+	rApi "github.com/kloudlite/internal_operator_v2/lib/operator.v2"
+	stepResult "github.com/kloudlite/internal_operator_v2/lib/operator.v2/step-result"
 )
 
 // EdgeReconciler reconciles a Edge object

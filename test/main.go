@@ -1,8 +1,8 @@
 package main
 
-import "operators.kloudlite.io/lib/rcalculate"
+import "github.com/kloudlite/internal_operator_v2/lib/rcalculate"
 
-// import "operators.kloudlite.io/lib/kresource"
+// import "github.com/kloudlite/internal_operator_v2/lib/kresource"
 
 func main() {
 	// kresource.TestFunc()

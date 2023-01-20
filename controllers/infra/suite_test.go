@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -14,7 +13,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	infrav1 "operators.kloudlite.io/apis/infra/v1"
+	infrav1 "github.com/kloudlite/internal_operator_v2/apis/infra/v1"
 	//+kubebuilder:scaffold:imports
 )
 

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -13,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	// deviceclusterv1 "operators.kloudlite.io/apis/device-cluster/v1"
+	// deviceclusterv1 "github.com/kloudlite/internal_operator_v2/apis/device-cluster/v1"
 	//+kubebuilder:scaffold:imports
 )
 

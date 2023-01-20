@@ -1,6 +1,6 @@
 package operator
 
-import "operators.kloudlite.io/lib/errors"
+import "github.com/kloudlite/internal_operator_v2/lib/errors"
 
 type fstring string
 

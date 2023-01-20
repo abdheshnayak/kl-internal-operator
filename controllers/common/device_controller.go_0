@@ -20,12 +20,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"operators.kloudlite.io/lib/conditions"
-	"operators.kloudlite.io/lib/constants"
-	"operators.kloudlite.io/lib/functions"
-	"operators.kloudlite.io/lib/logging"
-	"operators.kloudlite.io/lib/templates"
-	"operators.kloudlite.io/lib/wireguard"
+	"github.com/kloudlite/internal_operator_v2/lib/conditions"
+	"github.com/kloudlite/internal_operator_v2/lib/constants"
+	"github.com/kloudlite/internal_operator_v2/lib/functions"
+	"github.com/kloudlite/internal_operator_v2/lib/logging"
+	"github.com/kloudlite/internal_operator_v2/lib/templates"
+	"github.com/kloudlite/internal_operator_v2/lib/wireguard"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,9 +33,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	managementv1 "operators.kloudlite.io/apis/management/v1"
-	rApi "operators.kloudlite.io/lib/operator.v2"
-	stepResult "operators.kloudlite.io/lib/operator.v2/step-result"
+	managementv1 "github.com/kloudlite/internal_operator_v2/apis/management/v1"
+	rApi "github.com/kloudlite/internal_operator_v2/lib/operator.v2"
+	stepResult "github.com/kloudlite/internal_operator_v2/lib/operator.v2/step-result"
 )
 
 // DeviceReconciler reconciles a Device object

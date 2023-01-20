@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/kloudlite/internal_operator_v2/lib/cluster"
 	gonanoid "github.com/matoous/go-nanoid/v2"
-	"operators.kloudlite.io/lib/cluster"
 )
 
 type LinkerdCli struct {

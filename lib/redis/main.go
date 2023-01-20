@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-redis/redis/v8"
-	"operators.kloudlite.io/lib/errors"
+	"github.com/kloudlite/internal_operator_v2/lib/errors"
 )
 
 type Client struct {

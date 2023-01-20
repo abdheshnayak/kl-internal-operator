@@ -13,7 +13,7 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 
-	"operators.kloudlite.io/lib/errors"
+	"github.com/kloudlite/internal_operator_v2/lib/errors"
 )
 
 func useTemplate(file templateFile) (*kt, error) {
