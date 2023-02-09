@@ -46,7 +46,7 @@ const (
 
 func (r *EdgeReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
 
-	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &infrav1.Edge{})
+	req, err := rApi.NewRequest(context.WithValue(ctx, constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &infrav1.Edge{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -135,7 +135,7 @@ func (r *EdgeReconciler) reconRegion(req *rApi.Request[*infrav1.Edge]) stepResul
 		if err := r.applyRegion(req); err != nil {
 			return req.CheckFailed(RegionReady, check, err.Error())
 		}
-	} else if reg.Spec.Account != req.Object.Spec.AccountId {
+	} else if reg.Spec.AccountId != req.Object.Spec.AccountId {
 		if err := r.applyRegion(req); err != nil {
 			return req.CheckFailed(RegionReady, check, err.Error())
 		}

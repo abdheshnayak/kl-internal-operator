@@ -124,7 +124,7 @@ func main() {
 
 		if err := (&account.AccountReconciler{
 			Env:  envVars,
-			Name: "account",
+			Name: "Account",
 		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
 			os.Exit(1)
@@ -134,7 +134,7 @@ func main() {
 
 		if err := (&commoncontroller.DomainReconciler{
 			Env:  envVars,
-			Name: "device",
+			Name: "Domain",
 		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
 			os.Exit(1)
@@ -142,17 +142,16 @@ func main() {
 
 		if err := (&commoncontroller.RegionReconciler{
 			Env:  envVars,
-			Name: "region",
+			Name: "Region",
 		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Region")
 			os.Exit(1)
 		}
 
 		if err := (&commoncontroller.DeviceReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			Env:    envVars,
-		}).SetupWithManager(mgr); err != nil {
+			Env:  envVars,
+			Name: "Device",
+		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "KeyPrefix")
 			os.Exit(1)
 		}
@@ -166,36 +165,29 @@ func main() {
 		logger := logging.NewOrDie(&logging.Options{Dev: true})
 
 		if err := (&infracontrollers.CloudProviderReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			Name:   "CLProvider",
+			Name: "CLProvider",
 		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "CloudProvider")
 			os.Exit(1)
 		}
 
 		if err := (&infracontrollers.NodePoolReconciler{
-			Name:   "nodepool",
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Name: "Nodepool",
 		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NodePool")
 			os.Exit(1)
 		}
 
-		if err := (&infracontrollers.AccountNodeReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			Env:    envVars,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "AccountNode")
+		if err := (&infracontrollers.WorkerNodeReconciler{
+			Env:  envVars,
+			Name: "WorkerNode",
+		}).SetupWithManager(mgr, logger); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "WorkerNode")
 			os.Exit(1)
 		}
 
 		if err := (&infracontrollers.EdgeReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			Name:   "Edge",
+			Name: "Edge",
 		}).SetupWithManager(mgr, logger); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "AccountProvider")
 			os.Exit(1)

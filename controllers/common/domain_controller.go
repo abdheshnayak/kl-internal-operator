@@ -23,6 +23,12 @@ import (
 	stepResult "github.com/kloudlite/internal_operator_v2/lib/operator.v2/step-result"
 )
 
+/*
+	task pefromed by this controller
+	1. update the ips of the domain to the dns
+
+*/
+
 // DomainReconciler reconciles a Domain object
 type DomainReconciler struct {
 	client.Client
@@ -45,7 +51,7 @@ const (
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=domains/finalizers,verbs=update
 
 func (r *DomainReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &managementv1.Domain{})
+	req, err := rApi.NewRequest(context.WithValue(ctx,constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &managementv1.Domain{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -88,6 +94,7 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 	return ctrl.Result{RequeueAfter: ReconcilationPeriod * time.Second}, r.Status().Update(ctx, req.Object)
 }
 
+// update ip address to the dns server according to domain
 func (r *DomainReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Domain]) stepResult.Result {
 	obj, checks := req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
@@ -163,6 +170,7 @@ func (r *DomainReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Dom
 	return req.Next()
 }
 
+// delete domain from dns and finalize
 func (r *DomainReconciler) finalize(req *rApi.Request[*managementv1.Domain]) stepResult.Result {
 
 	dns := nameserver.NewClient(r.Env.NameserverEndpoint, r.Env.NameserverUser, r.Env.NameserverPassword)

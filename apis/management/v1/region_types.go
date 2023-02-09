@@ -10,18 +10,12 @@ import (
 
 // RegionSpec defines the desired state of Region
 type RegionSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Region. Edit region_types.go to remove/update
-	Name    string `json:"name"`
-	Account string `json:"account,omitempty"`
+	AccountId string `json:"accountId,omitempty"`
+	IsMaster  bool   `json:"isMaster,omitempty"`
 }
 
 // RegionStatus defines the observed state of Region
 type RegionStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 }
 
 //+kubebuilder:object:root=true
@@ -44,8 +38,8 @@ func (in *Region) GetEnsuredAnnotations() map[string]string {
 
 func (r *Region) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"kloudlite.io/region":      r.Spec.Name,
-		"kloudlite.io/account-ref": r.Spec.Account,
+		"kloudlite.io/region":      r.Name,
+		"kloudlite.io/account-ref": r.Spec.AccountId,
 	}
 }
 

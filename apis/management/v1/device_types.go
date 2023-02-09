@@ -2,12 +2,9 @@ package v1
 
 import (
 	"github.com/kloudlite/internal_operator_v2/lib/constants"
-	rApi "github.com/kloudlite/internal_operator_v2/lib/operator"
+	rApi "github.com/kloudlite/internal_operator_v2/lib/operator.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type Port struct {
 	Port       int32 `json:"port,omitempty"`
@@ -16,15 +13,12 @@ type Port struct {
 
 // DeviceSpec defines the desired state of Device
 type DeviceSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	Account      string `json:"account"`
+	AccountId    string `json:"accountId"`
 	ActiveRegion string `json:"activeRegion,omitempty"`
 	Offset       int    `json:"offset"`
-	DeviceId     string `json:"deviceId"`
-	DeviceName   string `json:"deviceName"`
-	Ports        []Port `json:"ports,omitempty"`
+	// DeviceId     string `json:"deviceId"`
+	// DeviceName string `json:"deviceName"`
+	Ports []Port `json:"ports,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -48,8 +42,8 @@ func (in *Device) GetEnsuredAnnotations() map[string]string {
 
 func (d *Device) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"kloudlite.io/device-id":   d.Spec.DeviceId,
-		"kloudlite.io/account-ref": d.Spec.Account,
+		"kloudlite.io/device-ref":  d.Name,
+		"kloudlite.io/account-ref": d.Spec.AccountId,
 	}
 }
 

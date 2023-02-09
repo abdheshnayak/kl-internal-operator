@@ -23,9 +23,6 @@ tasks:
     env:
       COMM: false
       INFRA: true
-      POD_CIDR: "10.244.0.0/16"
-      SVC_CIDR: "10.96.0.0/12"
-      NAMESERVER_ENDPOINT: http://dns-api.kl-core.svc.cluster.local
       WG_DOMAIN: kloudlite.io
       SSH_KEY_PATH: /home/nonroot/ssh
       STORE_PATH: /terraform/storage
@@ -34,7 +31,7 @@ tasks:
       # NAMESERVER_ENDPOINT: http://10.13.13.4:3000
     run: always
     cmds:
-      - nodemon -e "go" --signal SIGKILL --exec 'go build -i -tags dynamic -o ./bin/operator && ./bin/operator || exit 1'
+      - nodemon -e "go" --signal SIGKILL --exec 'go build -tags dynamic -o ./bin/operator && ./bin/operator || exit 1'
       # - go build -i -tags dynamic -o ./bin/operator
       # - ./bin/operator
 

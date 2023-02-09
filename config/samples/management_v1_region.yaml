@@ -1,7 +1,8 @@
 apiVersion: management.kloudlite.io/v1
 kind: Region
 metadata:
-  name: lon1
+  name: sample-region
 spec:
-  name: lon1 
+  name: sample-region
+  accountId: sample-account
   # TODO(user): Add fields here

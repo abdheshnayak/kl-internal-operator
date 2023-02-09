@@ -8,32 +8,6 @@ rules:
 - apiGroups:
   - infra.kloudlite.io
   resources:
-  - accountnodes
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - infra.kloudlite.io
-  resources:
-  - accountnodes/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - infra.kloudlite.io
-  resources:
-  - accountnodes/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - infra.kloudlite.io
-  resources:
   - cloudproviders
   verbs:
   - create
@@ -105,6 +79,32 @@ rules:
   - infra.kloudlite.io
   resources:
   - nodepools/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - workernodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - workernodes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infra.kloudlite.io
+  resources:
+  - workernodes/status
   verbs:
   - get
   - patch

@@ -1,5 +1,6 @@
 {{- $obj := get . "obj"}}
 {{- $region := get . "region"}}
+{{- $isMaster := get . "isMaster"}}
 {{- $regionOwnerRefs := get . "region-owner-refs" }}
 
 
@@ -37,7 +38,11 @@ spec:
         operator: Equal
         value: {{$region}}
       nodeSelector:
+        {{- if $IsMaster }}
+        node-role.kubernetes.io/master: "true"
+        {{- else }}
         kloudlite.io/region: {{$region}}
+        {{ end }}
       containers:
       - name: proxy
         imagePullPolicy: IfNotPresent

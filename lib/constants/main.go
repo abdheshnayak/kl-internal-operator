@@ -44,6 +44,8 @@ var (
 	}
 )
 
+type LoggerType string
+
 const (
 	AccountRef string = "kloudlite.io/account-ref"
 	ProjectRef string = "kloudlite.io/project-ref"
@@ -72,6 +74,7 @@ const (
 	NodeIps        string = "kloudlite.io/node-ips"
 
 	GroupVersionKind string = "kloudlite.io/group-version-kind"
+	LoggerConst      LoggerType = "logger"
 )
 
 var (

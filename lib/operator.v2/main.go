@@ -77,6 +77,12 @@ func GetLocal[T any, V Resource](r *Request[V], key string) (T, bool) {
 	return t, ok
 }
 
+func HasLocal[V Resource](r *Request[V], key string) bool {
+	_, ok := r.locals[key]
+	return ok
+
+}
+
 func SetLocal[T any, V Resource](r *Request[V], key string, value T) {
 	if r.locals == nil {
 		r.locals = map[string]any{}

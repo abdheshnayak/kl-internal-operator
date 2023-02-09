@@ -42,15 +42,6 @@ type AccountNodeReconciler struct {
 	Env    *env.Env
 }
 
-const (
-	JOB_NS   = "kl-core"
-	TOKEN_NS = "kl-core"
-)
-
-const (
-	KloudliteNs = "kl-core"
-)
-
 // +kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infra.kloudlite.io,resources=accountnodes/finalizers,verbs=update

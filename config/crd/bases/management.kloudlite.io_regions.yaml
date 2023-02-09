@@ -40,14 +40,10 @@ spec:
           spec:
             description: RegionSpec defines the desired state of Region
             properties:
-              account:
+              accountId:
                 type: string
-              name:
-                description: Foo is an example field of Region. Edit region_types.go
-                  to remove/update
-                type: string
-            required:
-            - name
+              isMaster:
+                type: boolean
             type: object
           status:
             properties:

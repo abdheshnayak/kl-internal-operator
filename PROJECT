@@ -59,15 +59,6 @@ resources:
   controller: true
   domain: kloudlite.io
   group: infra
-  kind: AccountNode
-  path: github.com/kloudlite/internal_operator_v2/apis/infra/v1
-  version: v1
-- api:
-    crdVersion: v1
-    namespaced: true
-  controller: true
-  domain: kloudlite.io
-  group: infra
   kind: AccountProvider
   path: github.com/kloudlite/internal_operator_v2/apis/infra/v1
   version: v1
@@ -87,6 +78,15 @@ resources:
   domain: kloudlite.io
   group: infra
   kind: CloudProvider
+  path: github.com/kloudlite/internal_operator_v2/apis/infra/v1
+  version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: kloudlite.io
+  group: infra
+  kind: WorkerNode
   path: github.com/kloudlite/internal_operator_v2/apis/infra/v1
   version: v1
 version: "3"

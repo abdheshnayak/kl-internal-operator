@@ -2,14 +2,13 @@ apiVersion: management.kloudlite.io/v1
 kind: Device
 metadata:
   name: device-plax
-  labels:
-    kloudlite.io/account-ref: acc-i-zcfuqpgwkekvjd2y5n2imaiz4v
 spec:
-  activeRegion: blr1
-  deviceId: device-plax2
-  account: acc-i-zcfuqpgwkekvjd2y5n2imaiz4v
+  activeRegion: master
+  accountId: sample-account
   offset: 2
-  ports: [3000,3001]
+  ports:
+    - port: 3000
+    - port: 3001
 
 ---
 
@@ -17,14 +16,13 @@ apiVersion: management.kloudlite.io/v1
 kind: Device
 metadata:
   name: device-plax2
-  labels:
-    kloudlite.io/account-ref: acc-i-zcfuqpgwkekvjd2y5n2imaiz4v
 spec:
-  activeRegion: us
-  deviceId: device-plax2
-  account: acc-i-zcfuqpgwkekvjd2y5n2imaiz4v
+  activeRegion: master
+  accountId: sample-account
   offset: 3
-  ports: [3000,3001]
+  ports:
+    - port: 3000
+    - port: 3001
 
 
   # TODO(user): Add fields here

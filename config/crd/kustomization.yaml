@@ -7,8 +7,8 @@ resources:
 - bases/management.kloudlite.io_devices.yaml
 - bases/management.kloudlite.io_domains.yaml
 - bases/management.kloudlite.io_regions.yaml
-- bases/infra.kloudlite.io_accountnodes.yaml
 - bases/infra.kloudlite.io_accountproviders.yaml
 - bases/infra.kloudlite.io_nodepools.yaml
 - bases/infra.kloudlite.io_cloudproviders.yaml
+- bases/infra.kloudlite.io_workernodes.yaml
 #+kubebuilder:scaffold:crdkustomizeresource

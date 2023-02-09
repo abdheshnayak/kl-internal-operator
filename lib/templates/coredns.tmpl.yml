@@ -63,7 +63,9 @@ spec:
   selector:
     matchLabels:
       app: dns
+      {{- if $region }}
       kloudlite.io/region: {{$region}}
+      {{ end }}
   template:
     metadata:
       labels:
@@ -76,7 +78,9 @@ spec:
         operator: Equal
         value: {{$region}}
       nodeSelector:
+        {{- if $region }}
         kloudlite.io/region: {{$region}}
+        {{ end }}
       containers:
       - args:
         - -conf

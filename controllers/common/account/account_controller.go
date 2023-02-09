@@ -73,14 +73,13 @@ const (
 const (
 	AccountNSReady = "namespace-ready"
 	// AccountNSDeleted      = "namespace-deleted"
-	RegionsReady          = "regions-ready"
 	AccountWGSKeysReady   = "wg-server-keys-ready"
 	AccountWGSConfigReady = "wg-server-config-ready"
 	DeviceProxyReady      = "device-proxy-ready"
-	WGDeployReady         = "wg-deployment-ready"
+	WGDeploysReady        = "wg-deployments-ready"
 	CorednsDeployReady    = "coredns-deployment-ready"
 	DomainReady           = "domain-ready"
-	WgDomainReady         = "wg-domain-ready"
+	// WgDomainReady         = "wg-domain-ready"
 )
 
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts,verbs=get;list;watch;create;update;patch;delete
@@ -88,7 +87,7 @@ const (
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts/finalizers,verbs=update
 
 func (r *AccountReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &managementv1.Account{})
+	req, err := rApi.NewRequest(context.WithValue(ctx, constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &managementv1.Account{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -96,14 +95,13 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, request ctrl.Request)
 	if step := req.EnsureChecks(
 		AccountNSReady,
 		// AccountNSDeleted,
-		RegionsReady,
 		AccountWGSKeysReady,
 		AccountWGSConfigReady,
 		DeviceProxyReady,
-		WGDeployReady,
+		WGDeploysReady,
 		CorednsDeployReady,
-		DomainReady,
-		WgDomainReady,
+		// DomainReady,
+		// WgDomainReady,
 	); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
 	}
@@ -149,7 +147,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, request ctrl.Request)
 	// 	return step.ReconcilerResponse()
 	// }
 
-	if step := r.reconWGServerKeys(req); !step.ShouldProceed() {
+	if step := r.reconWGServerKey(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
 	}
 
@@ -161,7 +159,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, request ctrl.Request)
 		return step.ReconcilerResponse()
 	}
 
-	if step := r.reconDeployment(req); !step.ShouldProceed() {
+	if step := r.reconDeployments(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
 	}
 
@@ -182,13 +180,17 @@ func (r *AccountReconciler) reconNamespace(req *rApi.Request[*managementv1.Accou
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
 
+	failed := func(err error) stepResult.Result {
+		return req.CheckFailed(AccountNSReady, check, err.Error())
+	}
+
 	if _, err := rApi.Get(
-		req.Context(), r.Client, types.NamespacedName{
-			Name: "wg-" + req.Object.Name,
+		ctx, r.Client, types.NamespacedName{
+			Name: "wg-" + obj.Name,
 		}, &corev1.Namespace{},
 	); err != nil {
 		if !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(AccountNSReady, check, err.Error())
+			return failed(err)
 		}
 
 		if err = r.Client.Create(ctx, &corev1.Namespace{
@@ -200,15 +202,15 @@ func (r *AccountReconciler) reconNamespace(req *rApi.Request[*managementv1.Accou
 				OwnerReferences: []metav1.OwnerReference{functions.AsOwner(obj, true)},
 			},
 		}); err != nil {
-			return req.CheckFailed(AccountNSReady, check, err.Error())
+			return failed(err)
 		}
-		return req.Done()
+		return failed(fmt.Errorf("namespacef for account is scheduled to create"))
 	}
 
 	check.Status = true
 	if check != checks[AccountNSReady] {
 		checks[AccountNSReady] = check
-		return req.UpdateStatus()
+		req.UpdateStatus()
 	}
 
 	return req.Next()
@@ -216,8 +218,7 @@ func (r *AccountReconciler) reconNamespace(req *rApi.Request[*managementv1.Accou
 
 func (r *AccountReconciler) fetchRequired(req *rApi.Request[*managementv1.Account]) stepResult.Result {
 
-	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
-	check := rApi.Check{Generation: obj.Generation}
+	ctx, obj := req.Context(), req.Object
 
 	// fetching regions
 	if err := func() error {
@@ -247,9 +248,20 @@ func (r *AccountReconciler) fetchRequired(req *rApi.Request[*managementv1.Accoun
 			req.Logger.Warnf(err.Error())
 		}
 
+		if masterRegion, err := rApi.Get(
+			ctx, r.Client, types.NamespacedName{
+				Name: "master",
+			}, &managementv1.Region{},
+		); masterRegion != nil && err == nil {
+			regions.Items = append(regions.Items, *masterRegion)
+		}
+
 		regions.Items = append(regions.Items, klRegions.Items...)
 
 		// fmt.Println(regions.Items,"here...................")
+		if len(regions.Items) == 0 {
+			return fmt.Errorf("no regions found")
+		}
 
 		rApi.SetLocal(req, "regions", regions)
 
@@ -303,28 +315,20 @@ func (r *AccountReconciler) fetchRequired(req *rApi.Request[*managementv1.Accoun
 		r.logger.Warnf(err.Error())
 	}
 
-	check.Status = true
-	if check != checks[RegionsReady] {
-		checks[RegionsReady] = check
-		return req.UpdateStatus()
-	}
-
 	return req.Next()
-
 }
 
-func (r *AccountReconciler) reconWGDomains(req *rApi.Request[*managementv1.Account]) stepResult.Result {
-	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
-	check := rApi.Check{Generation: obj.Generation}
+// reconcile wireguard unique domain for endpoint
+func (r *AccountReconciler) reconWGDomain(req *rApi.Request[*managementv1.Account]) stepResult.Result {
+	ctx, obj := req.Context(), req.Object
 
-	dm, ok := req.Object.Status.GeneratedVars.GetString("wg-domain")
+	dm, ok := obj.Status.GeneratedVars.GetString("wg-domain")
 
 	if !ok {
 		seed := time.Now().UTC().UnixNano()
 		nameGenerator := namegenerator.NewNameGenerator(seed)
 
 		domainName := func() string {
-
 			for {
 				name := nameGenerator.Generate()
 				var domains managementv1.DomainList
@@ -341,33 +345,28 @@ func (r *AccountReconciler) reconWGDomains(req *rApi.Request[*managementv1.Accou
 					return name
 				}
 			}
-
 		}()
 
-		req.Object.Status.GeneratedVars.Set("wg-domain", domainName)
-
+		obj.Status.GeneratedVars.Set("wg-domain", domainName)
 		return req.UpdateStatus()
-
 	}
 
 	rApi.SetLocal(req, "wg-domain", dm)
 
-	check.Status = true
-	if check != checks[WgDomainReady] {
-		checks[WgDomainReady] = check
-		return req.UpdateStatus()
-	}
-
 	return req.Next()
 }
 
-// create wg-server-keys
-func (r *AccountReconciler) reconWGServerKeys(req *rApi.Request[*managementv1.Account]) stepResult.Result {
+// reconcile wireguard public,private keys and ensure created.
+func (r *AccountReconciler) reconWGServerKey(req *rApi.Request[*managementv1.Account]) stepResult.Result {
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
+	failed := func(err error) stepResult.Result {
+		return req.CheckFailed(AccountWGSKeysReady, check, err.Error())
+	}
 
 	namespace := fmt.Sprintf("wg-%s", obj.Name)
 
+	// ensure keys generated, else crate
 	wgSecrets, err := rApi.Get(
 		ctx, r.Client, types.NamespacedName{
 			Namespace: namespace,
@@ -375,53 +374,58 @@ func (r *AccountReconciler) reconWGServerKeys(req *rApi.Request[*managementv1.Ac
 		}, &corev1.Secret{},
 	)
 
+	// if not found or got some error handle it
 	if err != nil {
+		// if err is something else return
 		if !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(AccountWGSKeysReady, check, err.Error())
+			return failed(err)
 		}
 
-		pub := ""
+		// if err is not found means needs to create new
 
 		pub, priv, err := wireguard.GenerateWgKeys()
 		if err != nil {
-			return req.CheckFailed(AccountWGSKeysReady, check, err.Error())
+			return failed(err)
 		}
 
-		if err = r.Client.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "wg-server-keys",
-				Namespace: namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					functions.AsOwner(req.Object, true),
+		if err = r.Client.Create(ctx,
+			&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "wg-server-keys",
+					Namespace: namespace,
+					OwnerReferences: []metav1.OwnerReference{
+						functions.AsOwner(req.Object, true),
+					},
+				},
+				Data: map[string][]byte{
+					"private-key": []byte(priv),
+					"public-key":  []byte(pub),
 				},
 			},
-			Data: map[string][]byte{
-				"private-key": []byte(priv),
-				"public-key":  []byte(pub),
-			},
-		},
 		); err != nil {
-			return req.CheckFailed(AccountWGSKeysReady, check, err.Error())
+			return failed(err)
 		}
 
 		req.Object.Status.DisplayVars.Set("wg-public-key", pub)
-		return req.UpdateStatus()
+		req.UpdateStatus()
+		return failed(fmt.Errorf("keys are being generated"))
 	}
 
+	// if found set to local so we can use it later
 	rApi.SetLocal(req, "wg-private-key", string(wgSecrets.Data["private-key"]))
 
 	// check if publicKey is set to DisplayVars if not then set it (will be used by device)
-	if existingPublicKey, ok := req.Object.Status.DisplayVars.GetString("wg-public-key"); ok &&
+	if existingPublicKey, ok :=
+		req.Object.Status.DisplayVars.GetString("wg-public-key"); ok &&
 		string(wgSecrets.Data["public-key"]) != existingPublicKey {
 
 		req.Object.Status.DisplayVars.Set("wg-public-key", string(wgSecrets.Data["public-key"]))
+		req.UpdateStatus()
+		return failed(fmt.Errorf("keys are being generated"))
 
-		return req.UpdateStatus()
 	} else if !ok {
-
 		req.Object.Status.DisplayVars.Set("wg-public-key", string(wgSecrets.Data["public-key"]))
-
-		return req.UpdateStatus()
+		return failed(fmt.Errorf("keys are being generated"))
 	}
 
 	check.Status = true
@@ -433,13 +437,18 @@ func (r *AccountReconciler) reconWGServerKeys(req *rApi.Request[*managementv1.Ac
 	return req.Next()
 }
 
+// reconcile wireguard server config generation
 func (r *AccountReconciler) reconWGServerConfig(req *rApi.Request[*managementv1.Account]) stepResult.Result {
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
 
+	failed := func(err error) stepResult.Result {
+		return req.CheckFailed(AccountWGSConfigReady, check, err.Error())
+	}
+
 	privateKey, ok := rApi.GetLocal[string](req, "wg-private-key")
 	if !ok {
-		return req.CheckFailed(AccountWGSConfigReady, check, "can't find wireguard private key")
+		return failed(fmt.Errorf("can't find wireguard private key"))
 	}
 
 	namespace := fmt.Sprintf("wg-%s", obj.Name)
@@ -456,7 +465,7 @@ func (r *AccountReconciler) reconWGServerConfig(req *rApi.Request[*managementv1.
 			Namespace: namespace,
 		},
 	); err != nil {
-		return req.CheckFailed(AccountWGSConfigReady, check, err.Error())
+		return failed(err)
 	}
 
 	var data struct {
@@ -500,7 +509,7 @@ func (r *AccountReconciler) reconWGServerConfig(req *rApi.Request[*managementv1.
 
 	parse, err := templates.Parse(templates.WireGuardConfig, data)
 	if err != nil {
-		return req.CheckFailed(AccountWGSKeysReady, check, err.Error())
+		return failed(err)
 	}
 
 	serverConfig := parse
@@ -524,7 +533,7 @@ func (r *AccountReconciler) reconWGServerConfig(req *rApi.Request[*managementv1.
 				},
 			},
 		); e != nil {
-			return req.CheckFailed(AccountWGSKeysReady, check, e.Error())
+			return failed(err)
 		}
 	}
 
@@ -541,17 +550,17 @@ func (r *AccountReconciler) reconWGServerConfig(req *rApi.Request[*managementv1.
 				},
 			},
 		); e != nil {
-			return req.CheckFailed(AccountWGSConfigReady, check, e.Error())
+			return failed(err)
 		}
 
 		regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
 		if !ok {
-			return req.CheckFailed(AccountWGSConfigReady, check, "regions not found")
+			return failed(fmt.Errorf("regions not found"))
 		}
 
 		devices, ok := rApi.GetLocal[managementv1.DeviceList](req, "devices")
 		if !ok {
-			return req.CheckFailed(AccountWGSConfigReady, check, "devices not found")
+			return failed(fmt.Errorf("devices not found"))
 		}
 
 		activeRegions := func() map[string]bool {
@@ -576,8 +585,6 @@ func (r *AccountReconciler) reconWGServerConfig(req *rApi.Request[*managementv1.
 				bytes.NewBuffer([]byte(serverConfig)),
 			); err != nil {
 				r.logger.Warnf(err.Error())
-				// fmt.Println(region.Name, ":", err)
-				// updateError = err
 			}
 		}
 
@@ -586,14 +593,15 @@ func (r *AccountReconciler) reconWGServerConfig(req *rApi.Request[*managementv1.
 	check.Status = true
 	if check != checks[AccountWGSConfigReady] {
 		checks[AccountWGSConfigReady] = check
-		return req.UpdateStatus()
+		req.UpdateStatus()
 	}
 
 	return req.Next()
-
 }
 
-func (r *AccountReconciler) updateDeployment(req *rApi.Request[*managementv1.Account]) error {
+// update deployments
+func (r *AccountReconciler) updateDeployments(req *rApi.Request[*managementv1.Account]) error {
+
 	obj := req.Object
 	namespace := fmt.Sprintf("wg-%s", obj.Name)
 
@@ -648,7 +656,6 @@ func (r *AccountReconciler) updateDeployment(req *rApi.Request[*managementv1.Acc
 				}
 			}
 
-			// fmt.Println(deployments, activeRegions, r2.Name, ".............................")
 			continue
 		}
 
@@ -661,32 +668,112 @@ func (r *AccountReconciler) updateDeployment(req *rApi.Request[*managementv1.Acc
 				"obj":               req.Object,
 				"region-owner-refs": functions.AsOwner(&r2),
 				"region":            r2.Name,
+				"isMaster":          r2.Spec.IsMaster,
 			},
 		); err != nil {
 			return err
 		} else if _, err = functions.KubectlApplyExec(b); err != nil {
 			return err
 		}
-
 	}
 	return nil
 }
 
-func (r *AccountReconciler) reconDeployment(req *rApi.Request[*managementv1.Account]) stepResult.Result {
+// reconcile coredns
+func (r *AccountReconciler) reconCoredns(req *rApi.Request[*managementv1.Account]) stepResult.Result {
+	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
+	check := rApi.Check{Generation: obj.Generation}
+	namespace := fmt.Sprintf("wg-%s", obj.Name)
+	failed := func(err error) stepResult.Result {
+		return req.CheckFailed(CorednsDeployReady, check, err.Error())
+	}
+
+	_, err := rApi.Get(
+		ctx, r.Client, types.NamespacedName{
+			Namespace: namespace,
+			Name:      "coredns",
+		}, &appsv1.Deployment{},
+	)
+
+	if err != nil {
+		if !apiErrors.IsNotFound(err) {
+			return failed(err)
+		}
+		configExists := true
+
+		if _, err := rApi.Get(
+			req.Context(), r.Client, types.NamespacedName{
+				Name:      "coredns",
+				Namespace: namespace,
+			}, &corev1.ConfigMap{},
+		); err != nil {
+			configExists = false
+		}
+
+		regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
+
+		if !ok {
+			return failed(fmt.Errorf("regions not found"))
+		}
+
+		var klReg string
+		for _, reg := range regions.Items {
+			if reg.Spec.AccountId == "kl-core" {
+				klReg = reg.Name
+			}
+		}
+
+		// if klReg == "" {
+		// 	// if len(regions.Items) > 0 {
+		// 	// 	klReg = regions.Items[0].Name
+		// 	// } else {
+		// 	// 	return failed(fmt.Errorf("regions not found"))
+		// 	// }
+		// }
+
+		if b, err := templates.Parse(
+			templates.Coredns, map[string]any{
+				"obj":                 req.Object,
+				"corednsConfigExists": configExists,
+				"owner-refs":          []metav1.OwnerReference{functions.AsOwner(obj, true)},
+				"region":              klReg,
+			},
+		); err != nil {
+			return failed(err)
+		} else if _, err = functions.KubectlApplyExec(b); err != nil {
+			return failed(err)
+		}
+
+	}
+
+	check.Status = true
+	if check != checks[CorednsDeployReady] {
+		checks[CorednsDeployReady] = check
+		return req.UpdateStatus()
+	}
+
+	return req.Next()
+}
+
+// reconcile deployments at least master needs to be created
+func (r *AccountReconciler) reconDeployments(req *rApi.Request[*managementv1.Account]) stepResult.Result {
 
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
+	failed := func(err error) stepResult.Result {
+		return req.CheckFailed(WGDeploysReady, check, err.Error())
+	}
 
 	regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
 	if !ok {
-		return req.CheckFailed(RegionsReady, check, "regions not found")
+		return failed(fmt.Errorf("regions not found"))
 	}
 
 	deployments, ok := rApi.GetLocal[appsv1.DeploymentList](req, "wg-deployments")
 	if !ok || len(deployments.Items) == 0 || len(deployments.Items) != len(regions.Items) {
 		// update deployment
-		if err := r.updateDeployment(req); err != nil {
-			return req.CheckFailed(WGDeployReady, check, err.Error())
+		if err := r.updateDeployments(req); err != nil {
+			return failed(err)
 		}
 	}
 
@@ -704,23 +791,19 @@ func (r *AccountReconciler) reconDeployment(req *rApi.Request[*managementv1.Acco
 
 	if err != nil || len(svcs.Items) == 0 || len(svcs.Items) != len(regions.Items) {
 		if err != nil && !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(WGDeployReady, check, err.Error())
+			return failed(err)
 		}
 		// create service
 
-		if err := r.updateDeployment(req); err != nil {
-			return req.CheckFailed(WGDeployReady, check, err.Error())
+		if err := r.updateDeployments(req); err != nil {
+			return failed(err)
 		}
 
 	}
 
-	// fmt.Println("here...............", svcs.Items)
-
 	displayVarsUpdated := false
 	for _, svc := range svcs.Items {
 		nodePort := svc.Spec.Ports[0].NodePort
-
-		fmt.Println(nodePort)
 
 		if nodePort == 0 {
 			fmt.Println("node port not ready for service", svc.Name)
@@ -735,38 +818,42 @@ func (r *AccountReconciler) reconDeployment(req *rApi.Request[*managementv1.Acco
 		np, ok := req.Object.GetStatus().DisplayVars.GetString(fmt.Sprintf("wg-nodeport-%s", region))
 		if !ok || np != fmt.Sprintf("%d", nodePort) {
 			displayVarsUpdated = true
-			fmt.Println(nodePort)
 			req.Object.Status.DisplayVars.Set(fmt.Sprintf("wg-nodeport-%s", region), fmt.Sprintf("%d", nodePort))
 		}
 	}
 
 	if displayVarsUpdated {
-		return req.UpdateStatus()
+		req.UpdateStatus()
+		return failed(fmt.Errorf("display vars are being updated"))
 	}
 
 	check.Status = true
-	if check != checks[WGDeployReady] {
-		checks[WGDeployReady] = check
+	if check != checks[WGDeploysReady] {
+		checks[WGDeploysReady] = check
 		return req.UpdateStatus()
 	}
 	return req.Next()
 }
 
+// reconcile domains
 func (r *AccountReconciler) reconDomain(req *rApi.Request[*managementv1.Account]) stepResult.Result {
 
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
+	failed := func(err error) stepResult.Result {
+		return req.CheckFailed(AccountWGSConfigReady, check, err.Error())
+	}
 
 	regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
 	if !ok {
-		return req.CheckFailed(AccountWGSConfigReady, check, "regions not found")
+		return failed(fmt.Errorf("regions not found"))
 	}
 
 	for _, region := range regions.Items {
 
 		wgDomain, ok := rApi.GetLocal[string](req, "wg-domain")
 		if !ok {
-			return req.CheckFailed(DomainReady, check, "can't get wg domain")
+			return failed(fmt.Errorf("can't get wg domain"))
 		}
 
 		var ipsAny []any
@@ -807,7 +894,7 @@ func (r *AccountReconciler) reconDomain(req *rApi.Request[*managementv1.Account]
 				},
 			},
 		); err != nil {
-			return req.CheckFailed(DomainReady, check, err.Error())
+			return failed(err)
 		}
 	}
 
@@ -820,79 +907,13 @@ func (r *AccountReconciler) reconDomain(req *rApi.Request[*managementv1.Account]
 	return req.Next()
 }
 
-func (r *AccountReconciler) reconCoredns(req *rApi.Request[*managementv1.Account]) stepResult.Result {
-	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
-	check := rApi.Check{Generation: obj.Generation}
-	namespace := fmt.Sprintf("wg-%s", obj.Name)
-
-	_, err := rApi.Get(
-		ctx, r.Client, types.NamespacedName{
-			Namespace: namespace,
-			Name:      "coredns",
-		}, &appsv1.Deployment{},
-	)
-
-	if err != nil {
-		if !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(CorednsDeployReady, check, err.Error())
-		}
-		configExists := true
-
-		if _, err := rApi.Get(
-			req.Context(), r.Client, types.NamespacedName{
-				Name:      "coredns",
-				Namespace: namespace,
-			}, &corev1.ConfigMap{},
-		); err != nil {
-			configExists = false
-		}
-
-		regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
-
-		if !ok {
-			return req.CheckFailed(AccountWGSConfigReady, check, "regions not found")
-		}
-		var klReg string
-		for _, reg := range regions.Items {
-			if reg.Spec.Account == "kl-core" {
-				klReg = reg.Name
-			}
-		}
-		if klReg == "" {
-			return req.CheckFailed(AccountWGSConfigReady, check, "regions not found")
-		}
-
-		if b, err := templates.Parse(
-			templates.Coredns, map[string]any{
-				"obj":                 req.Object,
-				"corednsConfigExists": configExists,
-				"owner-refs":          []metav1.OwnerReference{functions.AsOwner(obj, true)},
-				"region":              klReg,
-			},
-		); err != nil {
-			return req.CheckFailed(CorednsDeployReady, check, err.Error())
-		} else if _, err = functions.KubectlApplyExec(b); err != nil {
-			return req.CheckFailed(CorednsDeployReady, check, err.Error())
-		}
-	}
-
-	check.Status = true
-	if check != checks[CorednsDeployReady] {
-		checks[CorednsDeployReady] = check
-		return req.UpdateStatus()
-	}
-
-	return req.Next()
-}
-
-func (r *AccountReconciler) finalize(req *rApi.Request[*managementv1.Account]) stepResult.Result {
-	return req.Finalize()
-}
-
 // generating device proxy config and updating services
 func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.Account]) stepResult.Result {
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
+	failed := func(err error) stepResult.Result {
+		return req.CheckFailed(DeviceProxyReady, check, err.Error())
+	}
 
 	namespace := "wg-" + req.Object.Name
 	name := "device-proxy-config"
@@ -907,7 +928,7 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 	if err != nil {
 
 		if !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(DeviceProxyReady, check, err.Error())
+			return failed(err)
 		}
 
 		if e := r.Client.Create(ctx, &corev1.ConfigMap{
@@ -925,10 +946,10 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 				"config.json": `{"services":[]}`,
 			},
 		}); e != nil {
-			return req.CheckFailed(DeviceProxyReady, check, e.Error())
+			return failed(e)
 		}
 
-		return req.CheckFailed(DeviceProxyReady, check, "services are not upto date")
+		return failed(fmt.Errorf("services are not upto date"))
 	}
 
 	configs := []configService{}
@@ -939,7 +960,7 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 	if err == nil {
 		oConfMap := map[string][]configService{}
 		if e := json.Unmarshal([]byte(oldConfig.Data["config.json"]), &oConfMap); e != nil {
-			return req.CheckFailed(DeviceProxyReady, check, "can't unmarshal config.json")
+			return failed(fmt.Errorf("can't unmarshal config.json"))
 		}
 
 		oConfigs = []configService{}
@@ -990,7 +1011,7 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 
 	devices, ok := rApi.GetLocal[managementv1.DeviceList](req, "devices")
 	if !ok {
-		return req.CheckFailed(AccountWGSConfigReady, check, "devices not found")
+		return failed(fmt.Errorf("devices not found"))
 	}
 
 	// sorting the fetched devices
@@ -1046,7 +1067,7 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 		},
 	)
 	if err != nil {
-		return req.CheckFailed(DeviceProxyReady, check, err.Error())
+		return failed(err)
 	}
 
 	// checking either the new generated config is equal or not
@@ -1054,7 +1075,7 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 	// fmt.Println(oldConfig.Data["config.json"], string(c))
 	equal, err = functions.JSONStringsEqual(oldConfig.Data["config.json"], string(c))
 	if err != nil {
-		return req.CheckFailed(DeviceProxyReady, check, err.Error())
+		return failed(err)
 	}
 	if len(configs) == 0 {
 		equal = true
@@ -1071,7 +1092,7 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 			"services": configs,
 		})
 		if err != nil {
-			return req.CheckFailed(DeviceProxyReady, check, err.Error())
+			return failed(err)
 		}
 
 		if e := r.Client.Update(ctx, &corev1.ConfigMap{
@@ -1089,12 +1110,12 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 				"config.json": string(configJson),
 			},
 		}); e != nil {
-			return req.CheckFailed(DeviceProxyReady, check, e.Error())
+			return failed(err)
 		}
 
 		regions, ok := rApi.GetLocal[managementv1.RegionList](req, "regions")
 		if !ok {
-			return req.CheckFailed(RegionsReady, check, "regions not found")
+			return failed(fmt.Errorf("regions not found"))
 		}
 
 		activeRegions := func() map[string]bool {
@@ -1130,6 +1151,11 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 	}
 
 	return req.Next()
+}
+
+// finalize account delete
+func (r *AccountReconciler) finalize(req *rApi.Request[*managementv1.Account]) stepResult.Result {
+	return req.Finalize()
 }
 
 func getRemoteDeviceIp(deviceOffcet int64) (*ipaddr.IPAddressString, error) {

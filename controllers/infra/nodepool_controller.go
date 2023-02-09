@@ -44,8 +44,8 @@ const (
 )
 
 const (
-	AccountNodesReady   string = "account-nodes-ready"
-	AccountNodesDeleted string = "account-nodes-deleted"
+	WorkerNodesReady   string = "worker-nodes-ready"
+	WorkerNodesDeleted string = "worker-nodes-deleted"
 )
 
 // +kubebuilder:rbac:groups=infra.kloudlite.io,resources=nodepools,verbs=get;list;watch;create;update;patch;delete
@@ -53,12 +53,12 @@ const (
 // +kubebuilder:rbac:groups=infra.kloudlite.io,resources=nodepools/finalizers,verbs=update
 
 func (r *NodePoolReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &infrav1.NodePool{})
+	req, err := rApi.NewRequest(context.WithValue(ctx, constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &infrav1.NodePool{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if step := req.EnsureChecks(AccountNodesReady, AccountNodesDeleted); !step.ShouldProceed() {
+	if step := req.EnsureChecks(WorkerNodesReady, WorkerNodesDeleted); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
 	}
 
@@ -87,7 +87,7 @@ func (r *NodePoolReconciler) Reconcile(ctx context.Context, request ctrl.Request
 		return step.ReconcilerResponse()
 	}
 
-	if step := r.reconAccountNodes(req); !step.ShouldProceed() {
+	if step := r.reconWorkerNodes(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
 	}
 
@@ -101,21 +101,21 @@ func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) step
 
 	check := rApi.Check{Generation: obj.Generation}
 
-	var accountNodes infrav1.AccountNodeList
+	var workerNodes infrav1.WorkerNodeList
 	if err := r.Client.List(
-		ctx, &accountNodes, &client.ListOptions{
+		ctx, &workerNodes, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
 				map[string]string{constants.RegionKey: obj.Spec.EdgeRef},
 			),
 		},
 	); err != nil {
 		if !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(AccountNodesDeleted, check, err.Error())
+			return req.CheckFailed(WorkerNodesDeleted, check, err.Error())
 		}
-		return req.CheckFailed(AccountNodesDeleted, check, err.Error())
+		return req.CheckFailed(WorkerNodesDeleted, check, err.Error())
 	}
 
-	if len(accountNodes.Items) != 0 {
+	if len(workerNodes.Items) != 0 {
 		return req.Done()
 	}
 
@@ -145,14 +145,14 @@ func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) step
 	return req.Finalize()
 }
 
-func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePool]) stepResult.Result {
+func (r *NodePoolReconciler) reconWorkerNodes(req *rApi.Request[*infrav1.NodePool]) stepResult.Result {
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 
 	check := rApi.Check{Generation: obj.Generation}
 
-	var accountNodes infrav1.AccountNodeList
+	var workerNodes infrav1.WorkerNodeList
 	if err := r.List(
-		ctx, &accountNodes, &client.ListOptions{
+		ctx, &workerNodes, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
 				apiLabels.Set{
 					constants.RegionKey: obj.Spec.EdgeRef,
@@ -161,13 +161,13 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		},
 	); err != nil {
 		if !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(AccountNodesReady, check, err.Error())
+			return req.CheckFailed(WorkerNodesReady, check, err.Error())
 		}
 	}
 
-	for _, an := range accountNodes.Items {
+	for _, an := range workerNodes.Items {
 		if an.DeletionTimestamp != nil || !an.Status.IsReady {
-			return req.CheckFailed(AccountNodesReady, check, "waiting for deletion/creation of nodes to complete...")
+			return req.CheckFailed(WorkerNodesReady, check, "waiting for deletion/creation of nodes to complete...")
 		}
 	}
 
@@ -191,7 +191,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		},
 	); err != nil {
 		if !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(AccountNodesReady, check, err.Error())
+			return req.CheckFailed(WorkerNodesReady, check, err.Error())
 		}
 	}
 
@@ -201,7 +201,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		}, "requests",
 	)
 	if err != nil {
-		return req.CheckFailed(AccountNodesReady, check, err.Error())
+		return req.CheckFailed(WorkerNodesReady, check, err.Error())
 	}
 
 	totalStatefulUsedRes, err := kresource.GetTotalPodRequest(
@@ -211,7 +211,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		}, "requests",
 	)
 	if err != nil {
-		return req.CheckFailed(AccountNodesReady, check, err.Error())
+		return req.CheckFailed(WorkerNodesReady, check, err.Error())
 	}
 
 	i := rcalculate.Input{
@@ -241,7 +241,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 	fmt.Println("Scale-> ", obj.Name)
 	action, msg, err := i.Calculate()
 	if err != nil {
-		return req.CheckFailed(AccountNodesReady, check, err.Error())
+		return req.CheckFailed(WorkerNodesReady, check, err.Error())
 	}
 
 	r.logger.Infof("\n\n\n%d: %s (%s)\n\n\n", action, *msg, req.Object.Name)
@@ -251,7 +251,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 		case rcalculate.ADD_NODE:
 			{
 				if err := r.Client.Create(
-					ctx, &infrav1.AccountNode{
+					ctx, &infrav1.WorkerNode{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: string(uuid.NewUUID()),
 							Labels: apiLabels.Set{
@@ -259,7 +259,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 							},
 							OwnerReferences: []metav1.OwnerReference{functions.AsOwner(obj, true)},
 						},
-						Spec: infrav1.AccountNodeSpec{
+						Spec: infrav1.WorkerNodeSpec{
 							ProviderRef: obj.Spec.ProviderRef,
 							AccountRef:  obj.Spec.AccountRef,
 							EdgeRef:     obj.Spec.EdgeRef,
@@ -294,7 +294,7 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 						},
 					},
 				); err != nil {
-					return req.CheckFailed(AccountNodesReady, check, err.Error())
+					return req.CheckFailed(WorkerNodesReady, check, err.Error())
 				}
 				return req.Done()
 			}
@@ -303,26 +303,26 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 			{
 				// find last node and delete
 
-				if len(accountNodes.Items) > 0 {
+				if len(workerNodes.Items) > 0 {
 
 					last := 0
-					for _, n := range accountNodes.Items {
+					for _, n := range workerNodes.Items {
 						if last < n.Spec.Index {
 							last = n.Spec.Index
 						}
 					}
 
-					for _, n := range accountNodes.Items {
+					for _, n := range workerNodes.Items {
 						if n.Spec.Index == last {
 							if err := r.Delete(
-								ctx, &infrav1.AccountNode{
+								ctx, &infrav1.WorkerNode{
 									ObjectMeta: metav1.ObjectMeta{
 										Name: n.Name,
 										// Namespace: n.Namespace,
 									},
 								},
 							); err != nil {
-								return req.CheckFailed(AccountNodesReady, check, err.Error())
+								return req.CheckFailed(WorkerNodesReady, check, err.Error())
 							}
 							break
 						}
@@ -350,15 +350,15 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 			}
 		case 0:
 			{
-				req.Logger.Infof("accountNodes in sync...")
+				req.Logger.Infof("workerNodes in sync...")
 				check.Status = true
 			}
 		}
 	}
 
 	check.Status = true
-	if check != checks[AccountNodesReady] {
-		checks[AccountNodesReady] = check
+	if check != checks[WorkerNodesReady] {
+		checks[WorkerNodesReady] = check
 		return req.UpdateStatus()
 	}
 
@@ -367,9 +367,11 @@ func (r *NodePoolReconciler) reconAccountNodes(req *rApi.Request[*infrav1.NodePo
 
 func (r *NodePoolReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Logger) error {
 	r.logger = logger.WithName(r.Name)
+	r.Client = mgr.GetClient()
+	r.Scheme = mgr.GetScheme()
 
 	builder := ctrl.NewControllerManagedBy(mgr).For(&infrav1.NodePool{})
-	builder.Owns(&infrav1.AccountNode{})
+	builder.Owns(&infrav1.WorkerNode{})
 
 	watchList := []client.Object{
 		&corev1.Node{},

@@ -2,6 +2,7 @@ package commoncontroller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/kloudlite/internal_operator_v2/env"
@@ -51,7 +52,7 @@ const (
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=regions/finalizers,verbs=update
 
 func (r *RegionReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx, "logger", r.logger), r.Client, request.NamespacedName, &managementv1.Region{})
+	req, err := rApi.NewRequest(context.WithValue(ctx, constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &managementv1.Region{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -85,9 +86,9 @@ func (r *RegionReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 		return step.ReconcilerResponse()
 	}
 
-	if step := r.reconDefaults(req); !step.ShouldProceed() {
-		return step.ReconcilerResponse()
-	}
+	// if step := r.reconDefaults(req); !step.ShouldProceed() {
+	// 	return step.ReconcilerResponse()
+	// }
 
 	if step := r.reconUpdateRecord(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
@@ -103,46 +104,60 @@ func (r *RegionReconciler) finalize(req *rApi.Request[*managementv1.Region]) ste
 
 }
 
-func (r *RegionReconciler) reconDefaults(req *rApi.Request[*managementv1.Region]) stepResult.Result {
-	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
-	check := rApi.Check{Generation: obj.Generation}
-
-	if obj.Spec.Account == "" {
-		obj.Spec.Account = DefaultAccountName
-
-		ann := obj.GetAnnotations()
-		ann[constants.AccountRef] = obj.Spec.Account
-		obj.SetAnnotations(ann)
-
-		err := r.Update(ctx, obj)
-		return req.Done().RequeueAfter(2 * time.Second).Err(err)
-	}
-
-	check.Status = true
-	if check != checks[DefaultsPatched] {
-		checks[DefaultsPatched] = check
-		return req.UpdateStatus()
-	}
-	return req.Next()
-}
+// func (r *RegionReconciler) reconDefaults(req *rApi.Request[*managementv1.Region]) stepResult.Result {
+// 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
+// 	check := rApi.Check{Generation: obj.Generation}
+//
+// 	if obj.Spec.AccountId == "" {
+// 		obj.Spec.AccountId = DefaultAccountName
+//
+// 		ann := obj.GetAnnotations()
+// 		ann[constants.AccountRef] = obj.Spec.AccountId
+// 		obj.SetAnnotations(ann)
+//
+// 		err := r.Update(ctx, obj)
+// 		return req.Done().RequeueAfter(2 * time.Second).Err(err)
+// 	}
+//
+// 	check.Status = true
+// 	if check != checks[DefaultsPatched] {
+// 		checks[DefaultsPatched] = check
+// 		return req.UpdateStatus()
+// 	}
+// 	return req.Next()
+// }
 
 func (r *RegionReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Region]) stepResult.Result {
 	obj, checks := req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
 
 	var nodes corev1.NodeList
-	err := r.Client.List(
-		req.Context(), &nodes, &client.ListOptions{
-			LabelSelector: apiLabels.SelectorFromValidatedSet(
-				apiLabels.Set{
-					"kloudlite.io/region": req.Object.Name,
-				},
-			),
-		},
-	)
+	if obj.Spec.IsMaster {
+		if err := r.Client.List(
+			req.Context(), &nodes, &client.ListOptions{
+				LabelSelector: apiLabels.SelectorFromValidatedSet(
+					apiLabels.Set{
+						"node-role.kubernetes.io/master": "true",
+					},
+				),
+			},
+		); err != nil {
+			return req.CheckFailed(DomainReady, check, err.Error())
+		}
+	} else {
 
-	if err != nil {
-		return req.CheckFailed(DomainReady, check, err.Error())
+		if err := r.Client.List(
+			req.Context(), &nodes, &client.ListOptions{
+				LabelSelector: apiLabels.SelectorFromValidatedSet(
+					apiLabels.Set{
+						"kloudlite.io/region": req.Object.Name,
+					},
+				),
+			},
+		); err != nil {
+			return req.CheckFailed(DomainReady, check, err.Error())
+		}
+
 	}
 
 	ips := []string{}
@@ -167,7 +182,17 @@ func (r *RegionReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Reg
 	// 	return req.CheckFailed(DomainReady, check, err.Error()).Err(nil)
 	// }
 
-	if err = dns.UpsertNodeIps(req.Object.Name, req.Object.Spec.Account, r.Env.ClusterId, ips); err != nil {
+	// if err = dns.UpsertNodeIps(obj.Name, obj.Spec.AccountId, r.Env.ClusterId, ips); err != nil {
+	// 	return req.CheckFailed(DomainReady, check, err.Error())
+	// }
+
+	if err := dns.UpsertDomain(func() string {
+		if obj.Spec.IsMaster {
+			return fmt.Sprintf("%s.wg.khost.dev", obj.Name)
+		} else {
+			return fmt.Sprintf("%s.%s.wg.khost.dev", obj.Name, obj.Spec.AccountId)
+		}
+	}(), ips); err != nil {
 		return req.CheckFailed(DomainReady, check, err.Error())
 	}
 
