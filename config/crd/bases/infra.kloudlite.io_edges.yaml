@@ -15,7 +15,28 @@ spec:
     singular: edge
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: account
+      jsonPath: .spec.accountId
+      name: Account
+      type: string
+    - description: provider
+      jsonPath: .spec.provider
+      name: Provider
+      type: string
+    - description: provider
+      jsonPath: .spec.cluster
+      name: Clsuter
+      type: string
+    - description: index of node
+      jsonPath: .metadata.annotations.node-pools-count
+      name: pools
+      type: string
+    - description: region
+      jsonPath: .status.isReady
+      name: Ready
+      type: boolean
+    name: v1
     schema:
       openAPIV3Schema:
         description: Edge is the Schema for the accountproviders API
@@ -35,19 +56,12 @@ spec:
           spec:
             description: EdgeSpec defines the desired state of Edge
             properties:
-              accountId:
+              accountName:
                 description: Foo is an example field of Edge. Edit accountprovider_types.go
                   to remove/update
                 type: string
-              credentialsRef:
-                properties:
-                  key:
-                    type: string
-                  namespace:
-                    type: string
-                  secretName:
-                    type: string
-                type: object
+              clusterName:
+                type: string
               pools:
                 items:
                   properties:
@@ -59,12 +73,21 @@ spec:
                       type: integer
                     name:
                       type: string
+                  required:
+                  - config
+                  - name
                   type: object
                 type: array
               provider:
                 type: string
+              providerName:
+                type: string
               region:
                 type: string
+            required:
+            - accountName
+            - clusterName
+            - providerName
             type: object
           status:
             properties:

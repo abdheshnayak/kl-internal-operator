@@ -52,7 +52,7 @@ const (
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=regions/finalizers,verbs=update
 
 func (r *RegionReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx, constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &managementv1.Region{})
+	req, err := rApi.NewRequest(rApi.NewReconcilerCtx(ctx, r.logger), r.Client, request.NamespacedName, &managementv1.Region{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -190,7 +190,7 @@ func (r *RegionReconciler) reconUpdateRecord(req *rApi.Request[*managementv1.Reg
 		if obj.Spec.IsMaster {
 			return fmt.Sprintf("%s.wg.khost.dev", obj.Name)
 		} else {
-			return fmt.Sprintf("%s.%s.wg.khost.dev", obj.Name, obj.Spec.AccountId)
+			return fmt.Sprintf("%s.%s.wg.khost.dev", obj.Name, obj.Spec.AccountName)
 		}
 	}(), ips); err != nil {
 		return req.CheckFailed(DomainReady, check, err.Error())

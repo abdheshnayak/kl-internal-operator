@@ -3,4 +3,3 @@ kind: Account
 metadata:
   name: {{.Name}}
 spec:
-  accountId: {{.Spec.AccountId}}

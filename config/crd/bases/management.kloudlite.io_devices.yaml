@@ -15,7 +15,24 @@ spec:
     singular: device
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: provider
+      jsonPath: .metadata.annotations.ip
+      name: Ip
+      type: string
+    - description: provider
+      jsonPath: .spec.activeRegion
+      name: Active Region
+      type: string
+    - description: provider
+      jsonPath: .spec.accountId
+      name: Account
+      type: string
+    - description: region
+      jsonPath: .status.isReady
+      name: Ready
+      type: boolean
+    name: v1
     schema:
       openAPIV3Schema:
         description: Device is the Schema for the devices API
@@ -35,7 +52,7 @@ spec:
           spec:
             description: DeviceSpec defines the desired state of Device
             properties:
-              accountId:
+              accountName:
                 type: string
               activeRegion:
                 type: string
@@ -55,7 +72,7 @@ spec:
                   type: object
                 type: array
             required:
-            - accountId
+            - accountName
             - offset
             type: object
           status:

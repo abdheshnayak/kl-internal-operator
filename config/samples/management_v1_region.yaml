@@ -3,6 +3,5 @@ kind: Region
 metadata:
   name: sample-region
 spec:
-  name: sample-region
-  accountId: sample-account
+  accountName: sample-account
   # TODO(user): Add fields here

@@ -16,6 +16,7 @@ type CloudProviderSpec struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
+//+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.isReady",description="region"
 
 // CloudProvider is the Schema for the cloudproviders API
 type CloudProvider struct {
@@ -34,7 +35,7 @@ func (in *CloudProvider) GetEnsuredAnnotations() map[string]string {
 
 func (a *CloudProvider) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"kloudlite.io/provider-ref": a.Name,
+		"kloudlite.io/provider.name": a.Name,
 	}
 }
 

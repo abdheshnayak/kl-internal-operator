@@ -1,0 +1,7 @@
+apiVersion: infra.kloudlite.io/v1
+kind: AccountNode
+metadata:
+  name: accountnode-sample
+spec:
+
+  # TODO(user): Add fields here

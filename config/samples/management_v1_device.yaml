@@ -4,7 +4,7 @@ metadata:
   name: device-plax
 spec:
   activeRegion: master
-  accountId: sample-account
+  accountName: sample-account
   offset: 2
   ports:
     - port: 3000
@@ -18,7 +18,7 @@ metadata:
   name: device-plax2
 spec:
   activeRegion: master
-  accountId: sample-account
+  accountName: sample-account
   offset: 3
   ports:
     - port: 3000

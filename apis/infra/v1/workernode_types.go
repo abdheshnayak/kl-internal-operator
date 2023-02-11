@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/kloudlite/internal_operator_v2/lib/constants"
@@ -13,13 +14,15 @@ import (
 
 // WorkerNodeSpec defines the desired state of WorkerNode
 type WorkerNodeSpec struct {
-	AccountRef  string `json:"accountRef,omitempty"`
-	Region      string `json:"region"`
-	EdgeRef     string `json:"edgeRef"`
-	Provider    string `json:"provider"`
-	ProviderRef string `json:"providerRef,omitempty"`
-	Config      string `json:"config"`
-	Pool        string `json:"pool"`
+	Stateful     bool   `json:"stateful,omitempty"`
+	ClusterName  string `json:"clusterName"`
+	AccountName  string `json:"accountName"`
+	Region       string `json:"region"`
+	EdgeName     string `json:"edgeName"`
+	Provider     string `json:"provider"`
+	ProviderName string `json:"providerName"`
+	Config       string `json:"config"`
+	Pool         string `json:"pool"`
 	// +kubebuilder:default=0
 	Index int `json:"nodeIndex,omitempty"`
 }
@@ -31,6 +34,12 @@ type WorkerNodeStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Index",type="integer",JSONPath=".spec.nodeIndex",description="index of node"
+// +kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountRef",description="account"
+// +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".metadata.annotations.instanceType",description="provider"
+// +kubebuilder:printcolumn:JSONPath=".metadata.creationTimestamp",name=Age,type=date
+//+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.isReady",description="region"
 
 // WorkerNode is the Schema for the workernodes API
 type WorkerNode struct {
@@ -42,17 +51,33 @@ type WorkerNode struct {
 }
 
 func (a *WorkerNode) GetEnsuredAnnotations() map[string]string {
-	return map[string]string{}
+	instance := ""
+	var kv map[string]string
+	json.Unmarshal([]byte(a.Spec.Config), &kv)
+	switch a.Spec.Provider {
+	case "aws":
+		instance = kv["instanceType"]
+	}
+
+	return map[string]string{
+		"instanceType": fmt.Sprintf("%s/%s%s", a.Spec.Provider, a.Spec.Region, func() string {
+
+			if instance != "" {
+				return "/" + instance
+			}
+			return instance
+		}()),
+	}
 }
 
 func (a *WorkerNode) GetEnsuredLabels() map[string]string {
 	return map[string]string{
 		"kloudlite.io/account-node.name": a.Name,
-		constants.AccountRef:             a.Spec.AccountRef,
-		"kloudlite.io/region":            a.Spec.EdgeRef,
+		constants.AccountNameKey:         a.Spec.AccountName,
+		"kloudlite.io/region":            a.Spec.EdgeName,
 		constants.NodePoolKey:            a.Spec.Pool,
 		constants.NodeIndex:              fmt.Sprintf("%d", a.Spec.Index),
-		"kloudlite.io/provider-ref":      a.Spec.ProviderRef,
+		"kloudlite.io/provider.name":     a.Spec.ProviderName,
 	}
 }
 

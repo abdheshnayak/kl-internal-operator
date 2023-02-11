@@ -41,7 +41,7 @@ const (
 // +kubebuilder:rbac:groups=infra.kloudlite.io,resources=cloudproviders/finalizers,verbs=update
 
 func (r *CloudProviderReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx, constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &infrav1.CloudProvider{})
+	req, err := rApi.NewRequest(rApi.NewReconcilerCtx(ctx, r.logger), r.Client, request.NamespacedName, &infrav1.CloudProvider{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -89,7 +89,7 @@ func (r *CloudProviderReconciler) finalize(req *rApi.Request[*infrav1.CloudProvi
 	if err := r.Client.List(
 		ctx, &Edges, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
-				map[string]string{constants.ProviderRef: obj.Name},
+				map[string]string{constants.ProviderNameKey: obj.Name},
 			),
 		},
 	); err != nil {

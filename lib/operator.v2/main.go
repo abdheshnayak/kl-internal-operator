@@ -125,3 +125,9 @@ func GetRaw[T any](ctx context.Context, cli client.Client, nn types.NamespacedNa
 	}
 	return &result, nil
 }
+
+type ReconcilerCtx context.Context
+
+func NewReconcilerCtx(parent context.Context, logger logging.Logger) ReconcilerCtx {
+	return context.WithValue(parent, "logger", logger)
+}

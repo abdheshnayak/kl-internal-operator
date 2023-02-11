@@ -10,8 +10,8 @@ import (
 
 // RegionSpec defines the desired state of Region
 type RegionSpec struct {
-	AccountId string `json:"accountId,omitempty"`
-	IsMaster  bool   `json:"isMaster,omitempty"`
+	AccountName string `json:"accountName"`
+	IsMaster    bool   `json:"isMaster,omitempty"`
 }
 
 // RegionStatus defines the observed state of Region
@@ -21,7 +21,9 @@ type RegionStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
+//+kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountId",description="region"
 //+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.isReady",description="region"
+//+kubebuilder:printcolumn:name="is_master",type="boolean",JSONPath=".spec.isMaster",description="region"
 
 // Region is the Schema for the regions API
 type Region struct {
@@ -39,7 +41,7 @@ func (in *Region) GetEnsuredAnnotations() map[string]string {
 func (r *Region) GetEnsuredLabels() map[string]string {
 	return map[string]string{
 		"kloudlite.io/region":      r.Name,
-		"kloudlite.io/account-ref": r.Spec.AccountId,
+		"kloudlite.io/account.name": r.Spec.AccountName,
 	}
 }
 

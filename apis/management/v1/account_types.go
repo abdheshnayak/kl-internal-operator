@@ -6,7 +6,6 @@ import (
 )
 
 type AccountSpec struct {
-	AccountId    string   `json:"accountId,omitempty"`
 	OwnedDomains []string `json:"ownedDomains,omitempty"`
 }
 
@@ -30,7 +29,7 @@ func (in *Account) GetEnsuredAnnotations() map[string]string {
 
 func (a *Account) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"accountId": a.Spec.AccountId,
+		"kloudlite.io/account-name": a.Name,
 	}
 }
 

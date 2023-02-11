@@ -51,7 +51,7 @@ const (
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=domains/finalizers,verbs=update
 
 func (r *DomainReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx,constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &managementv1.Domain{})
+	req, err := rApi.NewRequest(rApi.NewReconcilerCtx(ctx, r.logger), r.Client, request.NamespacedName, &managementv1.Domain{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}

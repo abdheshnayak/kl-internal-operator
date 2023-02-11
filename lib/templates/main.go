@@ -120,4 +120,5 @@ const (
 	Region                templateFile = "./region.tmpl.yml"
 	Coredns               templateFile = "./coredns.tmpl.yml"
 	WGDeploy              templateFile = "./wg-deployment.tmpl.yml"
+	NodeJob               templateFile = "./nodejob.tmpl.yaml"
 )

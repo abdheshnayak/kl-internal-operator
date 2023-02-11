@@ -5,6 +5,10 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 const MsvcApiVersion = "msvc.kloudlite.io/v1"
 
 const (
+	MainNs string = "kl-core"
+)
+
+const (
 	HelmMongoDBKind string = "HelmMongoDB"
 
 	HelmMySqlDBKind string = "HelmMySqlDB"
@@ -47,9 +51,8 @@ var (
 type LoggerType string
 
 const (
-	AccountRef string = "kloudlite.io/account-ref"
-	ProjectRef string = "kloudlite.io/project-ref"
-	EdgeRef    string = "kloudlite.io/edge-ref"
+	AccountNameKey string = "kloudlite.io/account.name"
+	EdgeNameKey    string = "kloudlite.io/edge.name"
 
 	ProjectNameKey       string = "kloudlite.io/project.name"
 	MsvcNameKey          string = "kloudlite.io/msvc.name"
@@ -64,7 +67,7 @@ const (
 	WgDeploy    string = "kloudlite.io/wg-deployment"
 	WgDomain    string = "kloudlite.io/wg-domain"
 
-	ProviderRef string = "kloudlite.io/provider-ref"
+	ProviderNameKey string = "kloudlite.io/provider.name"
 
 	ClearStatusKey string = "kloudlite.io/clear-status"
 	RestartKey     string = "kloudlite.io/do-restart"
@@ -74,7 +77,6 @@ const (
 	NodeIps        string = "kloudlite.io/node-ips"
 
 	GroupVersionKind string = "kloudlite.io/group-version-kind"
-	LoggerConst      LoggerType = "logger"
 )
 
 var (

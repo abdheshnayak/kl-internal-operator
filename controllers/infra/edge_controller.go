@@ -46,7 +46,7 @@ const (
 
 func (r *EdgeReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
 
-	req, err := rApi.NewRequest(context.WithValue(ctx, constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &infrav1.Edge{})
+	req, err := rApi.NewRequest(rApi.NewReconcilerCtx(ctx, r.logger), r.Client, request.NamespacedName, &infrav1.Edge{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -101,7 +101,7 @@ func (r *EdgeReconciler) PatchDefaults(req *rApi.Request[*infrav1.Edge]) stepRes
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
 
-	cloudProvider, err := rApi.Get(ctx, r.Client, functions.NN("", obj.Spec.CredentialsRef.SecretName), &infrav1.CloudProvider{})
+	cloudProvider, err := rApi.Get(ctx, r.Client, functions.NN("", obj.Spec.ProviderName), &infrav1.CloudProvider{})
 	if err != nil {
 		return req.CheckFailed(DefaultsPatched, check, err.Error()).Err(nil)
 	}
@@ -135,7 +135,7 @@ func (r *EdgeReconciler) reconRegion(req *rApi.Request[*infrav1.Edge]) stepResul
 		if err := r.applyRegion(req); err != nil {
 			return req.CheckFailed(RegionReady, check, err.Error())
 		}
-	} else if reg.Spec.AccountId != req.Object.Spec.AccountId {
+	} else if reg.Spec.AccountName != req.Object.Spec.AccountName {
 		if err := r.applyRegion(req); err != nil {
 			return req.CheckFailed(RegionReady, check, err.Error())
 		}
@@ -159,7 +159,7 @@ func (r *EdgeReconciler) reconPool(req *rApi.Request[*infrav1.Edge]) stepResult.
 		ctx, &nodePools, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
 				apiLabels.Set{
-					"kloudlite.io/edge-ref": req.Object.Name,
+					"kloudlite.io/edge.name": req.Object.Name,
 				},
 			),
 		},
@@ -215,7 +215,7 @@ func (r *EdgeReconciler) applyRegion(req *rApi.Request[*infrav1.Edge]) error {
 	if b, err := templates.Parse(
 		templates.Region, map[string]any{
 			"name":     req.Object.Name,
-			"account":  req.Object.Spec.AccountId,
+			"account":  req.Object.Spec.AccountName,
 			"provider": req.Object.Spec.Provider,
 		},
 	); err != nil {
@@ -228,6 +228,7 @@ func (r *EdgeReconciler) applyRegion(req *rApi.Request[*infrav1.Edge]) error {
 }
 
 func (r *EdgeReconciler) UpdatePool(req *rApi.Request[*infrav1.Edge]) error {
+	obj := req.Object
 	b, err := templates.Parse(
 		templates.NodePools, map[string]any{"pools": func() []infrav1.NodePool {
 			pls := make([]infrav1.NodePool, 0)
@@ -241,14 +242,15 @@ func (r *EdgeReconciler) UpdatePool(req *rApi.Request[*infrav1.Edge]) error {
 							Labels:          req.Object.GetEnsuredLabels(),
 						},
 						Spec: infrav1.NodePoolSpec{
-							ProviderRef: req.Object.Spec.CredentialsRef.SecretName,
-							AccountRef:  req.Object.Spec.AccountId,
-							EdgeRef:     req.Object.Name,
-							Provider:    req.Object.Spec.Provider,
-							Region:      req.Object.Spec.Region,
-							Config:      p.Config,
-							Min:         p.Min,
-							Max:         p.Max,
+							AccountName:  obj.Spec.AccountName,
+							ClusterName:      obj.Spec.ClusterName,
+							EdgeName:     obj.Name,
+							Provider:     obj.Spec.Provider,
+							ProviderName: obj.Spec.ProviderName,
+							Region:       obj.Spec.Region,
+							Config:       p.Config,
+							Min:          p.Min,
+							Max:          p.Max,
 						},
 					},
 				)
@@ -302,7 +304,7 @@ func (r *EdgeReconciler) finalize(req *rApi.Request[*infrav1.Edge]) stepResult.R
 		req.Context(), &nodePools, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
 				map[string]string{
-					constants.EdgeRef: req.Object.Name,
+					constants.EdgeNameKey: req.Object.Name,
 				},
 			),
 		},
@@ -344,7 +346,7 @@ func (r *EdgeReconciler) finalize(req *rApi.Request[*infrav1.Edge]) stepResult.R
 	// 		return nil
 	// 	}
 	//
-	// 	_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool -l kloudlite.io/edge-ref", req.Object.Name), "")
+	// 	_, err = functions.ExecCmd(fmt.Sprintf("kubectl delete nodepool -l kloudlite.io/edge.name", req.Object.Name), "")
 	// 	return err
 	// }(); err != nil {
 	// 	return req.FailWithStatusError(err)

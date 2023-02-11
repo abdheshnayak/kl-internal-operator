@@ -3,5 +3,4 @@ kind: Account
 metadata:
   name: sample-account
 spec:
-  accountId: sample-account
   # TODO(user): Add fields here

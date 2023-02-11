@@ -1,6 +1,102 @@
 apiVersion: infra.kloudlite.io/v1
 kind: Edge
 metadata:
-  name: kl
+  name: sample-edge
 spec:
-  # TODO(user): Add fields here
+  accountName: sample-account
+  providerName: provider-cp-u4mfkvwucdkddasgpa10ydumdkuv
+  pools:
+  - config: '{"instanceType":"c6a.large","vpc":""}'
+    max: 50
+    min: 1
+    name: "01"
+  provider: aws
+  region: ap-south-1
+
+# Please edit the object below. Lines beginning with a '#' will be ignored,
+# and an empty file will abort the edit. If an error occurs while saving this file will be
+# reopened with the relevant failures.
+#
+---
+
+apiVersion: v1
+data:
+  accessKey: QUtJQVJRWUdSUE9SVURNUUlYR00=
+  accessSecret: MDh4WXBsZjVaZDh0UmtleTc2OFhtSnVTOUd1QnZhazRQOWVkZUZYcw==
+kind: Secret
+metadata:
+  name: provider-cp-u4mfkvwucdkddasgpa10ydumdkuv
+  namespace: kl-core
+type: Opaque
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    kloudlite.io/region: sample-edge
+spec:
+  selector:
+    matchLabels: &k
+      app: nginx
+      kloudlite.io/region: sample-edge
+      # kloudlite.io/stateful-node: "true"
+
+  replicas: 10 # tells deployment to run 2 pods matching the template
+  template:
+    metadata:
+      labels: *k
+    spec:
+      nodeSelector:
+        kloudlite.io/region: sample-edge
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "500m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+
+---
+
+apiVersion: infra.kloudlite.io/v1
+kind: Edge
+metadata:
+  name: sample-edge-do
+spec:
+  accountName: sample-account
+  providerName: provider-cp-7a3z0pg98gigv-pgrysais6iyqwe
+  pools:
+  - config: '{ "size": "c-2", "imageId":"117388514" }'
+    max: 10
+    min: 1
+    name: "01"
+  provider: do
+  region: blr1
+
+---
+
+apiVersion: infra.kloudlite.io/v1
+kind: CloudProvider
+metadata:
+  name: provider-cp-7a3z0pg98gigv-pgrysais6iyqwe
+spec: {}
+
+---
+
+apiVersion: v1
+data:
+  apiToken: ZG9wX3YxX2Q0ZjJmYTA3OTRmYmE3Y2FlZDIxN2JlMzI0YmNjMDBhODA5ZmQ0OGE0MWU2ZTFhN2QzN2M3NDg5ZGIwZDgyNTU=
+kind: Secret
+metadata:
+  name: provider-cp-7a3z0pg98gigv-pgrysais6iyqwe
+  namespace: kl-core
+type: Opaque
+

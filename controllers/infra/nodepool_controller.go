@@ -2,8 +2,8 @@ package infra
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	infrav1 "github.com/kloudlite/internal_operator_v2/apis/infra/v1"
@@ -14,6 +14,7 @@ import (
 	rApi "github.com/kloudlite/internal_operator_v2/lib/operator.v2"
 	stepResult "github.com/kloudlite/internal_operator_v2/lib/operator.v2/step-result"
 	"github.com/kloudlite/internal_operator_v2/lib/rcalculate"
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,7 +54,8 @@ const (
 // +kubebuilder:rbac:groups=infra.kloudlite.io,resources=nodepools/finalizers,verbs=update
 
 func (r *NodePoolReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx, constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &infrav1.NodePool{})
+	req, err := rApi.NewRequest(rApi.NewReconcilerCtx(ctx, r.logger), r.Client, request.NamespacedName, &infrav1.NodePool{})
+
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -87,6 +89,10 @@ func (r *NodePoolReconciler) Reconcile(ctx context.Context, request ctrl.Request
 		return step.ReconcilerResponse()
 	}
 
+	if step := r.fetchRequired(req); !step.ShouldProceed() {
+		return step.ReconcilerResponse()
+	}
+
 	if step := r.reconWorkerNodes(req); !step.ShouldProceed() {
 		return step.ReconcilerResponse()
 	}
@@ -97,6 +103,7 @@ func (r *NodePoolReconciler) Reconcile(ctx context.Context, request ctrl.Request
 }
 
 func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) stepResult.Result {
+	// return req.Finalize()
 	ctx, obj := req.Context(), req.Object
 
 	check := rApi.Check{Generation: obj.Generation}
@@ -105,7 +112,7 @@ func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) step
 	if err := r.Client.List(
 		ctx, &workerNodes, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
-				map[string]string{constants.RegionKey: obj.Spec.EdgeRef},
+				map[string]string{constants.RegionKey: obj.Spec.EdgeName},
 			),
 		},
 	); err != nil {
@@ -145,59 +152,101 @@ func (r *NodePoolReconciler) finalize(req *rApi.Request[*infrav1.NodePool]) step
 	return req.Finalize()
 }
 
-func (r *NodePoolReconciler) reconWorkerNodes(req *rApi.Request[*infrav1.NodePool]) stepResult.Result {
-	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
+type iDetails struct {
+	Aws map[string]iDetail `json:"aws" yaml:"aws,omitempty"`
+	Do  map[string]iDetail `json:"do" yaml:"do,omitempty"`
+}
 
+type iDetail struct {
+	Cpu    int `json:"cpu" yaml:"cpu"`
+	Memory int `json:"memory" yaml:"memory"`
+}
+
+func (r *NodePoolReconciler) fetchRequired(req *rApi.Request[*infrav1.NodePool]) stepResult.Result {
+
+	ctx := req.Context()
+	if err := func() error {
+		iDetailsConfig, err := rApi.Get(ctx, r.Client, types.NamespacedName{
+			Namespace: "default",
+			Name:      "instance-details",
+		}, &corev1.ConfigMap{})
+		if err != nil {
+			return err
+		}
+
+		var miDetails iDetails
+		if err := yaml.Unmarshal([]byte(iDetailsConfig.Data["details"]), &miDetails); err != nil {
+			return err
+		}
+
+		rApi.SetLocal(req, "instance-details", miDetails)
+		return nil
+	}(); err != nil {
+		r.logger.Warnf(err.Error())
+	}
+	return req.Next()
+}
+
+func (r *NodePoolReconciler) reconWorkerNodes(req *rApi.Request[*infrav1.NodePool]) stepResult.Result {
+
+	ctx, obj, checks, logger := req.Context(), req.Object, req.Object.Status.Checks, r.logger
 	check := rApi.Check{Generation: obj.Generation}
+	failed := func(err error) stepResult.Result {
+		return req.CheckFailed(WorkerNodesReady, check, err.Error())
+	}
 
 	var workerNodes infrav1.WorkerNodeList
 	if err := r.List(
 		ctx, &workerNodes, &client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
 				apiLabels.Set{
-					constants.RegionKey: obj.Spec.EdgeRef,
+					constants.RegionKey: obj.Spec.EdgeName,
 				},
 			),
 		},
 	); err != nil {
 		if !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(WorkerNodesReady, check, err.Error())
+			// return req.CheckFailed(WorkerNodesReady, check, err.Error())
+			return failed(err)
 		}
 	}
 
-	for _, an := range workerNodes.Items {
-		if an.DeletionTimestamp != nil || !an.Status.IsReady {
-			return req.CheckFailed(WorkerNodesReady, check, "waiting for deletion/creation of nodes to complete...")
-		}
+	miDetails, ok := rApi.GetLocal[iDetails](req, "instance-details")
+	if !ok {
+		return failed(fmt.Errorf("instance-details not found to make decision"))
 	}
 
-	// totalAvailableRes, err := kresource.GetTotalResource(
-	// 	map[string]string{
-	// 		constants.NodePoolKey: req.Object.Name,
-	// 	},
-	// )
-	// if err != nil {
-	// 	return req.CheckFailed(AccountNodesReady, check, err.Error())
-	// }
+	getResourceSize := func(node infrav1.WorkerNode) rcalculate.Size {
+		size := rcalculate.Size{
+			Memory: 0,
+			Cpu:    0,
+		}
 
-	var nodes corev1.NodeList
-	if err := r.List(
-		ctx, &nodes, &client.ListOptions{
-			LabelSelector: apiLabels.SelectorFromValidatedSet(
-				apiLabels.Set{
-					constants.RegionKey: obj.Spec.EdgeRef,
-				},
-			),
-		},
-	); err != nil {
-		if !apiErrors.IsNotFound(err) {
-			return req.CheckFailed(WorkerNodesReady, check, err.Error())
+		switch node.Spec.Provider {
+		case "do":
+		case "aws":
+			var nodeConf awsNode
+			if err := json.Unmarshal([]byte(node.Spec.Config), &nodeConf); err != nil {
+				size = rcalculate.Size{
+					Memory: 0,
+					Cpu:    0,
+				}
+			}
+
+			size = rcalculate.Size{
+				Memory: miDetails.Aws[nodeConf.InstanceType].Memory,
+				Cpu:    miDetails.Aws[nodeConf.InstanceType].Cpu,
+			}
+		}
+		return rcalculate.Size{
+			Memory: size.Memory * 1000,
+			Cpu:    size.Cpu * 1000,
 		}
 	}
 
 	totalUsedRes, err := kresource.GetTotalPodRequest(
 		map[string]string{
-			constants.RegionKey: obj.Spec.EdgeRef,
+			constants.RegionKey: obj.Spec.EdgeName,
 		}, "requests",
 	)
 	if err != nil {
@@ -206,10 +255,11 @@ func (r *NodePoolReconciler) reconWorkerNodes(req *rApi.Request[*infrav1.NodePoo
 
 	totalStatefulUsedRes, err := kresource.GetTotalPodRequest(
 		map[string]string{
-			constants.RegionKey:          obj.Spec.EdgeRef,
+			constants.RegionKey:          obj.Spec.EdgeName,
 			"kloudlite.io/stateful-node": "true",
 		}, "requests",
 	)
+
 	if err != nil {
 		return req.CheckFailed(WorkerNodesReady, check, err.Error())
 	}
@@ -219,15 +269,12 @@ func (r *NodePoolReconciler) reconWorkerNodes(req *rApi.Request[*infrav1.NodePoo
 		MaxNode: obj.Spec.Max,
 		Nodes: func() []rcalculate.Node {
 			rk := make([]rcalculate.Node, 0)
-			for _, n := range nodes.Items {
+			for _, n := range workerNodes.Items {
 				rk = append(
 					rk, rcalculate.Node{
 						Name:     n.Name,
-						Stateful: n.GetLabels()["kloudlite.io/stateful-node"] == "true",
-						Size: rcalculate.Size{
-							Memory: n.Status.Allocatable.Memory().String(),
-							Cpu:    n.Status.Allocatable.Cpu().String(),
-						},
+						Stateful: n.Spec.Stateful,
+						Size:     getResourceSize(n),
 					},
 				)
 			}
@@ -237,14 +284,13 @@ func (r *NodePoolReconciler) reconWorkerNodes(req *rApi.Request[*infrav1.NodePoo
 		TotalUsed:    totalUsedRes.Memory,
 		Threshold:    80,
 	}
-
-	fmt.Println("Scale-> ", obj.Name)
-	action, msg, err := i.Calculate()
+	logger.Infof("Scale-> %s", obj.Name)
+	action, msg, err := i.Calculate(logger)
 	if err != nil {
 		return req.CheckFailed(WorkerNodesReady, check, err.Error())
 	}
 
-	r.logger.Infof("\n\n\n%d: %s (%s)\n\n\n", action, *msg, req.Object.Name)
+	logger.Infof("\n\n\n%d: %s (%s)\n\n\n", action, *msg, req.Object.Name)
 
 	if true {
 		switch action {
@@ -255,32 +301,25 @@ func (r *NodePoolReconciler) reconWorkerNodes(req *rApi.Request[*infrav1.NodePoo
 						ObjectMeta: metav1.ObjectMeta{
 							Name: string(uuid.NewUUID()),
 							Labels: apiLabels.Set{
-								constants.RegionKey: obj.Spec.EdgeRef,
+								constants.RegionKey: obj.Spec.EdgeName,
 							},
 							OwnerReferences: []metav1.OwnerReference{functions.AsOwner(obj, true)},
 						},
 						Spec: infrav1.WorkerNodeSpec{
-							ProviderRef: obj.Spec.ProviderRef,
-							AccountRef:  obj.Spec.AccountRef,
-							EdgeRef:     obj.Spec.EdgeRef,
-							Provider:    obj.Spec.Provider,
-							Config:      obj.Spec.Config,
-							Region:      obj.Spec.Region,
-							Pool:        obj.Name,
+							ClusterName: obj.ClusterName,
+							ProviderName: obj.Spec.ProviderName,
+							AccountName:  obj.Spec.AccountName,
+							EdgeName:     obj.Spec.EdgeName,
+							Provider:     obj.Spec.Provider,
+							Config:       obj.Spec.Config,
+							Region:       obj.Spec.Region,
+							Pool:         obj.Name,
 							Index: func() int {
-								ind := len(nodes.Items)
+								ind := len(workerNodes.Items)
 								for i := 0; i < ind; i++ {
 									found := false
-									for _, n := range nodes.Items {
-										index, ok := n.GetLabels()["kloudlite.io/node-index"]
-										if !ok {
-											continue
-										}
-										in, err := strconv.ParseInt(index, 10, 32)
-										if err != nil {
-											continue
-										}
-										if i == int(in) {
+									for _, n := range workerNodes.Items {
+										if i == int(n.Spec.Index) {
 											found = true
 											break
 										}
@@ -333,13 +372,11 @@ func (r *NodePoolReconciler) reconWorkerNodes(req *rApi.Request[*infrav1.NodePoo
 		case rcalculate.ADD_STATEFUL:
 			{
 				cnt := i.GetStatefulCount()
-				for _, n := range nodes.Items {
-					if n.GetLabels()["kloudlite.io/node-index"] == fmt.Sprint(cnt) {
+				for _, n := range workerNodes.Items {
+					if n.Spec.Index == cnt {
 						ctrl.CreateOrUpdate(
 							ctx, r.Client, &n, func() error {
-								l := n.GetLabels()
-								l["kloudlite.io/stateful-node"] = "true"
-								n.SetLabels(l)
+								n.Spec.Stateful = true
 								return nil
 							},
 						)
@@ -350,7 +387,7 @@ func (r *NodePoolReconciler) reconWorkerNodes(req *rApi.Request[*infrav1.NodePoo
 			}
 		case 0:
 			{
-				req.Logger.Infof("workerNodes in sync...")
+				logger.Infof("workerNodes in sync...")
 				check.Status = true
 			}
 		}

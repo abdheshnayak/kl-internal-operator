@@ -45,12 +45,12 @@ func (n *NameServer) UpsertDomain(domainName string, aRecords []string) error {
 	return err
 }
 
-func (n *NameServer) UpsertNodeIps(region string, accountId string, clusterName string, ips []string) error {
+func (n *NameServer) UpsertNodeIps(region string, accountName string, clusterName string, ips []string) error {
 	client := http.Client{Timeout: 5 * time.Second}
 	data, err := json.Marshal(
 		map[string]any{
 			"region":  region,
-			"account": accountId,
+			"account": accountName,
 			"cluster": clusterName,
 			"ips":     ips,
 		},
@@ -95,9 +95,9 @@ func (n *NameServer) GetRecord(domainName string) (*http.Response, error) {
 	return Client.Do(req)
 }
 
-func (n *NameServer) GetRegionDomain(accountId, regionId string) (*http.Response, error) {
+func (n *NameServer) GetRegionDomain(accountName, regionId string) (*http.Response, error) {
 
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get-region-domain/%s/%s", n.endpoint, accountId, regionId), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/get-region-domain/%s/%s", n.endpoint, accountName, regionId), nil)
 	if err != nil {
 		return nil, err
 	}

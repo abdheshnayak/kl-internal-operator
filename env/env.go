@@ -13,6 +13,9 @@ type Env struct {
 	SvcCidr            string `env:"SVC_CIDR" required:"true"`
 	SSHPath            string `env:"SSH_PATH" required:"true"`
 	ClusterId          string `env:"CLUSTER_ID" required:"true"`
+
+	StorePath       string `env:"STORE_PATH" required:"true"`
+	TFTemplatesPath string `env:"TF_TEMPLATES_PATH" required:"true"`
 }
 
 func GetEnvOrDie() *Env {

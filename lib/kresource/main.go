@@ -34,7 +34,7 @@ func TestFunc() {
 }
 
 // label of pool needs to be provided
-func GetTotalPodRequest(labels map[string]string, limitOrSecret string) (*Res, error) {
+func GetTotalPodRequest(labels map[string]string, limitOrRequest string) (*Res, error) {
 	l := " -l "
 	ls := []string{}
 	for k, v := range labels {
@@ -43,7 +43,7 @@ func GetTotalPodRequest(labels map[string]string, limitOrSecret string) (*Res, e
 
 	l += strings.Join(ls, ",")
 
-	out, err := functions.ExecCmd(fmt.Sprintf(`kubectl get pods -A -o jsonpath-as-json={.items[*].spec.containers[*].resources.%s}`, limitOrSecret)+l, "")
+	out, err := functions.ExecCmd(fmt.Sprintf(`kubectl get pods -A -o jsonpath-as-json={.items[*].spec.containers[*].resources.%s}`, limitOrRequest)+l, "")
 	if err != nil {
 		return nil, err
 	}

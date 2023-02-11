@@ -87,7 +87,7 @@ const (
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=accounts/finalizers,verbs=update
 
 func (r *AccountReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx, constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &managementv1.Account{})
+	req, err := rApi.NewRequest(rApi.NewReconcilerCtx(ctx, r.logger), r.Client, request.NamespacedName, &managementv1.Account{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -197,7 +197,7 @@ func (r *AccountReconciler) reconNamespace(req *rApi.Request[*managementv1.Accou
 			ObjectMeta: metav1.ObjectMeta{
 				Name: fmt.Sprintf("wg-%s", req.Object.Name),
 				Labels: apiLabels.Set{
-					constants.AccountRef: req.Object.Name,
+					constants.AccountNameKey: req.Object.Name,
 				},
 				OwnerReferences: []metav1.OwnerReference{functions.AsOwner(obj, true)},
 			},
@@ -228,7 +228,7 @@ func (r *AccountReconciler) fetchRequired(req *rApi.Request[*managementv1.Accoun
 			ctx, &regions, &client.ListOptions{
 				LabelSelector: apiLabels.SelectorFromValidatedSet(
 					apiLabels.Set{
-						constants.AccountRef: req.Object.Name,
+						constants.AccountNameKey: req.Object.Name,
 					},
 				),
 			},
@@ -240,7 +240,7 @@ func (r *AccountReconciler) fetchRequired(req *rApi.Request[*managementv1.Accoun
 			ctx, &klRegions, &client.ListOptions{
 				LabelSelector: apiLabels.SelectorFromValidatedSet(
 					apiLabels.Set{
-						constants.AccountRef: "kl-core",
+						constants.AccountNameKey: "kl-core",
 					},
 				),
 			},
@@ -278,7 +278,7 @@ func (r *AccountReconciler) fetchRequired(req *rApi.Request[*managementv1.Accoun
 			&client.ListOptions{
 				LabelSelector: apiLabels.SelectorFromValidatedSet(
 					apiLabels.Set{
-						constants.AccountRef: req.Object.Spec.AccountId,
+						constants.AccountNameKey: obj.Name,
 					},
 				),
 			},
@@ -718,7 +718,7 @@ func (r *AccountReconciler) reconCoredns(req *rApi.Request[*managementv1.Account
 
 		var klReg string
 		for _, reg := range regions.Items {
-			if reg.Spec.AccountId == "kl-core" {
+			if reg.Spec.AccountName == "kl-core" {
 				klReg = reg.Name
 			}
 		}
@@ -936,7 +936,7 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 				Name:      name,
 				Namespace: namespace,
 				Annotations: apiLabels.Set{
-					constants.AccountRef: obj.Name,
+					constants.AccountNameKey: obj.Name,
 				},
 				OwnerReferences: []metav1.OwnerReference{
 					functions.AsOwner(req.Object),
@@ -1100,7 +1100,7 @@ func (r *AccountReconciler) reconDevProxyConfig(req *rApi.Request[*managementv1.
 				Name:      name,
 				Namespace: namespace,
 				Annotations: apiLabels.Set{
-					constants.AccountRef: obj.Name,
+					constants.AccountNameKey: obj.Name,
 				},
 				OwnerReferences: []metav1.OwnerReference{
 					functions.AsOwner(req.Object),
@@ -1187,7 +1187,7 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Lo
 				if object.GetLabels() == nil {
 					return nil
 				}
-				account, ok := object.GetLabels()["kloudlite.io/account-ref"]
+				account, ok := object.GetLabels()["kloudlite.io/account.name"]
 				if !ok {
 					return nil
 				}
@@ -1211,13 +1211,13 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Lo
 				}
 
 				l := object.GetLabels()
-				accountId := l["kloudlite.io/account-ref"]
+				accountName := l["kloudlite.io/account.name"]
 
 				var accounts managementv1.AccountList
 				results := []reconcile.Request{}
 				ctx := context.TODO()
 
-				if accountId == "" {
+				if accountName == "" {
 					err := r.Client.List(
 						ctx, &accounts, &client.ListOptions{
 							LabelSelector: apiLabels.SelectorFromValidatedSet(apiLabels.Set{}),
@@ -1241,7 +1241,7 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Lo
 					account, err := rApi.Get(
 						ctx, r.Client,
 						types.NamespacedName{
-							Name: accountId,
+							Name: accountName,
 						}, &managementv1.Account{},
 					)
 

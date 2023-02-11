@@ -34,7 +34,7 @@ spec:
     - from:
         - namespaceSelector:
             matchExpressions:
-              - key: kloudlite.io/account-ref
+              - key: kloudlite.io/account.name
                 operator: In
                 values:
                   - {{.Name}}

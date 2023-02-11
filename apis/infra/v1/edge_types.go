@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"fmt"
+
 	"github.com/kloudlite/internal_operator_v2/lib/constants"
 	rApi "github.com/kloudlite/internal_operator_v2/lib/operator.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -9,15 +11,9 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type AccountProviderCrediential struct {
-	SecretName string `json:"secretName,omitempty"`
-	Namespace  string `json:"namespace,omitempty"`
-	Key        string `json:"key,omitempty"`
-}
-
 type Pool struct {
-	Name   string `json:"name,omitempty"`
-	Config string `json:"config,omitempty"`
+	Name   string `json:"name"`
+	Config string `json:"config"`
 	Min    int    `json:"min,omitempty"`
 	Max    int    `json:"max,omitempty"`
 }
@@ -28,16 +24,23 @@ type EdgeSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of Edge. Edit accountprovider_types.go to remove/update
-	AccountId      string                     `json:"accountId,omitempty"`
-	Provider       string                     `json:"provider,omitempty"`
-	Region         string                     `json:"region,omitempty"`
-	CredentialsRef AccountProviderCrediential `json:"credentialsRef,omitempty"`
-	Pools          []Pool                     `json:"pools,omitempty"`
+	AccountName  string `json:"accountName"`
+	Provider     string `json:"provider,omitempty"`
+	Region       string `json:"region,omitempty"`
+	ProviderName string `json:"providerName"`
+	ClusterName      string `json:"clusterName"`
+
+	Pools []Pool `json:"pools,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountId",description="account"
+// +kubebuilder:printcolumn:name="Provider",type="string",JSONPath=".spec.provider",description="provider"
+// +kubebuilder:printcolumn:name="Clsuter",type="string",JSONPath=".spec.cluster",description="provider"
+// +kubebuilder:printcolumn:name="pools",type="string",JSONPath=".metadata.annotations.node-pools-count",description="index of node"
+//+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.isReady",description="region"
 
 // Edge is the Schema for the accountproviders API
 type Edge struct {
@@ -48,18 +51,19 @@ type Edge struct {
 	Status rApi.Status `json:"status,omitempty"`
 }
 
-func (in *Edge) GetEnsuredAnnotations() map[string]string {
+func (a *Edge) GetEnsuredAnnotations() map[string]string {
 	return map[string]string{
 		constants.GroupVersionKind: GroupVersion.WithKind("Edge").String(),
+		"node-pools-count":         fmt.Sprint(len(a.Spec.Pools)),
 	}
 }
 
 func (a *Edge) GetEnsuredLabels() map[string]string {
 	return map[string]string{
-		"kloudlite.io/provider":     a.Spec.Provider,
-		"kloudlite.io/account-ref":  a.Spec.AccountId,
-		"kloudlite.io/edge-ref":     a.Name,
-		"kloudlite.io/provider-ref": a.Spec.CredentialsRef.SecretName,
+		"kloudlite.io/provider":      a.Spec.Provider,
+		"kloudlite.io/account.name":  a.Spec.AccountName,
+		"kloudlite.io/edge.name":     a.Name,
+		"kloudlite.io/provider.name": a.Spec.ProviderName,
 	}
 }
 

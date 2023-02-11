@@ -10,7 +10,7 @@ kind: Deployment
 metadata:
   name: "wireguard-deployment-{{$region}}"
   annotations:
-    kloudlite.io/account-ref: {{.Name}}
+    kloudlite.io/account.name: {{.Name}}
   labels:
     kloudlite.io/wg-deployment: "true"
   namespace: "wg-{{.Name}}"
@@ -117,7 +117,7 @@ kind: Service
 apiVersion: v1
 metadata:
   annotations:
-    kloudlite.io/account-ref: {{.Name}}
+    kloudlite.io/account.name: {{.Name}}
   labels:
     k8s-app: wireguard
     kloudlite.io/wg-service: "true"
@@ -141,7 +141,7 @@ kind: Service
 apiVersion: v1
 metadata:
   annotations:
-    kloudlite.io/account-ref: {{.Name}}
+    kloudlite.io/account.name: {{.Name}}
   labels:
     kloudlite.io/proxy-api: "true"
     region: {{$region}}

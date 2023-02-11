@@ -17,8 +17,16 @@ spec:
   versions:
   - additionalPrinterColumns:
     - description: region
+      jsonPath: .spec.accountId
+      name: Account
+      type: string
+    - description: region
       jsonPath: .status.isReady
       name: Ready
+      type: boolean
+    - description: region
+      jsonPath: .spec.isMaster
+      name: is_master
       type: boolean
     name: v1
     schema:
@@ -40,10 +48,12 @@ spec:
           spec:
             description: RegionSpec defines the desired state of Region
             properties:
-              accountId:
+              accountName:
                 type: string
               isMaster:
                 type: boolean
+            required:
+            - accountName
             type: object
           status:
             properties:

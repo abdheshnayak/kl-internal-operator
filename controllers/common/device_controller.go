@@ -67,7 +67,7 @@ const (
 // +kubebuilder:rbac:groups=management.kloudlite.io,resources=devices/finalizers,verbs=update
 
 func (r *DeviceReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	req, err := rApi.NewRequest(context.WithValue(ctx,constants.LoggerConst, r.logger), r.Client, request.NamespacedName, &managementv1.Device{})
+	req, err := rApi.NewRequest(rApi.NewReconcilerCtx(ctx, r.logger), r.Client, request.NamespacedName, &managementv1.Device{})
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -138,7 +138,7 @@ func (r *DeviceReconciler) Reconcile(ctx context.Context, request ctrl.Request) 
 func (r *DeviceReconciler) fetchRequired(req *rApi.Request[*managementv1.Device]) stepResult.Result {
 
 	ctx, obj := req.Context(), req.Object
-	namespace := "wg-" + obj.Spec.AccountId
+	namespace := "wg-" + obj.Spec.AccountName
 
 	// fetching regions
 	if err := func() error {
@@ -219,7 +219,7 @@ func (r *DeviceReconciler) updateServices(req *rApi.Request[*managementv1.Device
 
 	config, err := rApi.Get(
 		ctx, r.Client, types.NamespacedName{
-			Namespace: "wg-" + obj.Spec.AccountId,
+			Namespace: "wg-" + obj.Spec.AccountName,
 			Name:      "device-proxy-config",
 		}, &corev1.ConfigMap{},
 	)
@@ -286,10 +286,10 @@ func (r *DeviceReconciler) updateServices(req *rApi.Request[*managementv1.Device
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      obj.Name,
-			Namespace: "wg-" + obj.Spec.AccountId,
+			Namespace: "wg-" + obj.Spec.AccountName,
 			Labels: map[string]string{
-				"proxy-device-service":    "true",
-				"kloudlite.io/device-ref": obj.Name,
+				"proxy-device-service":     "true",
+				"kloudlite.io/device.name": obj.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				functions.AsOwner(obj, true),
@@ -340,7 +340,7 @@ func (r *DeviceReconciler) reconSyncServices(req *rApi.Request[*managementv1.Dev
 
 	service, err := rApi.Get(
 		ctx, r.Client, types.NamespacedName{
-			Namespace: "wg-" + obj.Spec.AccountId,
+			Namespace: "wg-" + obj.Spec.AccountName,
 			Name:      obj.Name,
 		}, &corev1.Service{},
 	)
@@ -378,7 +378,7 @@ func (r *DeviceReconciler) reconWgKeys(req *rApi.Request[*managementv1.Device]) 
 	ctx, obj, checks := req.Context(), req.Object, req.Object.Status.Checks
 	check := rApi.Check{Generation: obj.Generation}
 
-	namespace := fmt.Sprintf("wg-%s", obj.Spec.AccountId)
+	namespace := fmt.Sprintf("wg-%s", obj.Spec.AccountName)
 	name := fmt.Sprintf("wg-device-keys-%s", obj.GetName())
 
 	failed := func(err error) stepResult.Result {
@@ -413,11 +413,11 @@ func (r *DeviceReconciler) reconWgKeys(req *rApi.Request[*managementv1.Device]) 
 			functions.ParseSecret(
 				&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "wg-" + obj.Spec.AccountId,
+						Namespace: "wg-" + obj.Spec.AccountName,
 						Name:      fmt.Sprintf("wg-device-keys-%s", obj.Name),
 						Labels: map[string]string{
-							"kloudlite.io/is-wg-key":  "true",
-							"kloudlite.io/device-ref": obj.Name,
+							"kloudlite.io/is-wg-key":   "true",
+							"kloudlite.io/device.name": obj.Name,
 						},
 						OwnerReferences: []metav1.OwnerReference{
 							functions.AsOwner(obj, true),
@@ -476,7 +476,7 @@ func (r *DeviceReconciler) reconDeviceConfig(req *rApi.Request[*managementv1.Dev
 
 	currentConfig, err := rApi.Get(
 		ctx, r.Client, types.NamespacedName{
-			Namespace: "wg-" + obj.Spec.AccountId,
+			Namespace: "wg-" + obj.Spec.AccountName,
 			Name:      fmt.Sprintf("wg-device-config-%s", obj.Name),
 		}, &corev1.Secret{},
 	)
@@ -503,7 +503,7 @@ func (r *DeviceReconciler) reconDeviceConfig(req *rApi.Request[*managementv1.Dev
 
 	account, err := rApi.Get(
 		ctx, r.Client, types.NamespacedName{
-			Name: obj.Spec.AccountId,
+			Name: obj.Spec.AccountName,
 		}, &managementv1.Account{},
 	)
 
@@ -573,7 +573,7 @@ func (r *DeviceReconciler) reconDeviceConfig(req *rApi.Request[*managementv1.Dev
 					if region.Spec.IsMaster {
 						return fmt.Sprintf("%s.wg.khost.dev:%s", obj.Name, wgNodePort)
 					} else {
-						return fmt.Sprintf("%s.%s.wg.khost.dev:%s", region.Name, region.Spec.AccountId, wgNodePort)
+						return fmt.Sprintf("%s.%s.wg.khost.dev:%s", region.Name, region.Spec.AccountName, wgNodePort)
 					}
 					// if res.StatusCode == 200 {
 					// 	return fmt.Sprintf("%s:%s", string(regionDomain), wgNodePort)
@@ -624,11 +624,11 @@ func (r *DeviceReconciler) reconDeviceConfig(req *rApi.Request[*managementv1.Dev
 			&corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf("wg-device-config-%s", obj.Name),
-					Namespace: "wg-" + obj.Spec.AccountId,
+					Namespace: "wg-" + obj.Spec.AccountName,
 					Labels: map[string]string{
 						"kloudlite.io/wg-device-config": "true",
-						"kloudlite.io/account-ref":      obj.Spec.AccountId,
-						"kloudlite.io/device-ref":       obj.Name,
+						"kloudlite.io/account.name":     obj.Spec.AccountName,
+						"kloudlite.io/device.name":      obj.Name,
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						functions.AsOwner(obj, true),
@@ -671,7 +671,7 @@ func (r *DeviceReconciler) reconDnsRewriteRules(req *rApi.Request[*managementv1.
 		&client.ListOptions{
 			LabelSelector: apiLabels.SelectorFromValidatedSet(
 				apiLabels.Set{
-					"kloudlite.io/account-ref": obj.Spec.AccountId,
+					"kloudlite.io/account.name": obj.Spec.AccountName,
 				},
 			),
 		},
@@ -737,13 +737,13 @@ func (r *DeviceReconciler) reconDnsRewriteRules(req *rApi.Request[*managementv1.
 					device.Name,
 					"kl.local",
 					device.Name,
-					device.Spec.AccountId,
+					device.Spec.AccountName,
 				)
 			}
 
 			account, err := rApi.Get(
 				ctx, r.Client, types.NamespacedName{
-					Name: obj.Spec.AccountId,
+					Name: obj.Spec.AccountName,
 				}, &managementv1.Account{},
 			)
 			if err != nil {
@@ -771,7 +771,7 @@ func (r *DeviceReconciler) reconDnsRewriteRules(req *rApi.Request[*managementv1.
 			}
 
 			// fmt.Println(op)
-			_, err = functions.Kubectl("-n", fmt.Sprintf("wg-%s", obj.Spec.AccountId), "rollout", "restart", "deployment/coredns")
+			_, err = functions.Kubectl("-n", fmt.Sprintf("wg-%s", obj.Spec.AccountName), "rollout", "restart", "deployment/coredns")
 
 			if err != nil {
 				return err
@@ -846,7 +846,7 @@ func (r *DeviceReconciler) SetupWithManager(mgr ctrl.Manager, logger logging.Log
 					}
 
 					l := object.GetLabels()
-					deviceId := l["kloudlite.io/device-ref"]
+					deviceId := l["kloudlite.io/device.name"]
 					if deviceId == "" {
 						return nil
 					}

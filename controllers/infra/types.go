@@ -11,14 +11,14 @@ type awsSpec struct {
 }
 
 type doProvider struct {
-	ApiToken  string `yaml:"apiToken" json:"apiToken"`
-	AccountId string `yaml:"accountId" json:"accountId"`
+	ApiToken    string `yaml:"apiToken" json:"apiToken"`
+	AccountName string `yaml:"accountId" json:"accountId"`
 }
 
 type awsProvider struct {
 	AccessKey    string `yaml:"accessKey" json:"accessKey"`
 	AccessSecret string `yaml:"accessSecret" json:"accessSecret"`
-	AccountId    string `yaml:"accountId" json:"accountId"`
+	AccountName    string `yaml:"accountId" json:"accountId"`
 }
 
 type doNode struct {

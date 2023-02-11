@@ -2,8 +2,8 @@ package rcalculate
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
+
+	"github.com/kloudlite/internal_operator_v2/lib/logging"
 )
 
 const (
@@ -24,88 +24,20 @@ func Test() {
 				Stateful: false,
 				index:    "0",
 				Size: Size{
-					Memory: "1Gb",
-					Cpu:    "100i",
+					Memory: 1,
+					Cpu:    1,
 				},
 			},
 		},
 		TotalUsed: 0,
 		Threshold: 80,
 	}
-
-	fmt.Println(i.Calculate())
+	fmt.Println(i)
 }
 
 type Size struct {
-	Memory string
-	Cpu    string
-}
-
-func (s *Size) getCpu() (int, error) {
-	if strings.TrimSpace(s.Cpu) != "" {
-		var cpu int64
-		var e error
-		c := strings.ReplaceAll(s.Cpu, "m", "")
-		if c != s.Cpu {
-
-			if cpu, e = strconv.ParseInt(c, 10, 32); e != nil {
-				return 0, e
-			} else {
-				return int(cpu), nil
-			}
-
-		} else {
-
-			if cpu, e = strconv.ParseInt(c, 10, 32); e != nil {
-				return 0, e
-			} else {
-				return int(cpu) * 1000, nil
-			}
-
-		}
-
-	}
-
-	return 0, nil
-}
-
-func (s *Size) getMemory() (int, error) {
-	if strings.TrimSpace(s.Memory) != "" {
-		var memory int64
-		var e error
-		c := strings.ReplaceAll(s.Memory, "Ki", "")
-		if c != s.Memory {
-			if memory, e = strconv.ParseInt(c, 10, 32); e != nil {
-				return 0, e
-			} else {
-				return int(memory) / 1024, nil
-			}
-		}
-
-		c = strings.ReplaceAll(s.Memory, "Mi", "")
-		if c != s.Memory {
-			if memory, e = strconv.ParseInt(c, 10, 32); e != nil {
-				return 0, e
-			} else {
-				return int(memory), nil
-			}
-		}
-
-	} else {
-		return 0, nil
-	}
-
-	m := strings.ReplaceAll(s.Memory, "Mi", "")
-	m = strings.ReplaceAll(m, "Ki", "")
-	if strings.TrimSpace(m) != "" {
-		if memory, e := strconv.ParseInt(m, 10, 32); e != nil {
-			return 0, e
-		} else {
-			return int(memory), nil
-		}
-	}
-
-	return 0, nil
+	Memory int
+	Cpu    int
 }
 
 type Node struct {
@@ -163,17 +95,9 @@ func (i *Input) getStatefulAllocatable() (*IntSize, error) {
 			continue
 		}
 
-		if cpu, err := n.Size.getCpu(); err != nil {
-			return nil, err
-		} else {
-			size.Cpu += cpu
-		}
+		size.Cpu += n.Size.Cpu
 
-		if memory, err := n.Size.getMemory(); err != nil {
-			return nil, err
-		} else {
-			size.Memory += memory
-		}
+		size.Memory += n.Size.Memory
 	}
 
 	i.statefulAllocatable = &size
@@ -187,17 +111,8 @@ func (i *Input) getAllocatable() (*IntSize, error) {
 		Memory: 0,
 	}
 	for _, n := range i.Nodes {
-		if cpu, err := n.Size.getCpu(); err != nil {
-			return nil, err
-		} else {
-			size.Cpu += cpu
-		}
-
-		if memory, err := n.Size.getMemory(); err != nil {
-			return nil, err
-		} else {
-			size.Memory += memory
-		}
+		size.Cpu += n.Size.Cpu
+		size.Memory += n.Size.Memory
 	}
 	return &size, nil
 }
@@ -260,10 +175,7 @@ func (i *Input) getFilledByAssumingLess() (int, error) {
 		return 0, err
 	}
 
-	s, err := i.Nodes[0].Size.getMemory()
-	if err != nil {
-		return 0, err
-	}
+	s := i.Nodes[0].Size.Memory
 	if (allocatable.Memory-s) == 0 && i.TotalUsed > 0 {
 		return 200, nil
 	}
@@ -276,20 +188,32 @@ func (i *Input) getFilledByAssumingLess() (int, error) {
 // return action, message, error
 // action 1 -> add, 0 -> leave, -1 -> delete one
 // ( stateful ) action 2 -> tag stateful,  -2 -> untag one Stateful
-func (i *Input) Calculate() (int, *string, error) {
+func (i *Input) Calculate(logger logging.Logger) (int, *string, error) {
 
-	fmt.Println("..................................................")
-	fmt.Println("Scale-> Total Used", i.TotalUsed)
-	fmt.Println("Scale-> Stateful Used", i.StatefulUsed)
-	fmt.Println("Scale-> Min Node", i.MinNode)
-	fmt.Println("Scale-> Max Node", i.MaxNode)
-	fmt.Printf("Scale-> Filled:")
-	fmt.Println(i.getTotalFilled())
-	fmt.Printf("Scale-> If node delete filled:")
-	fmt.Println(i.getFilledByAssumingLess())
-	fmt.Printf("Scale-> Allocatable: ")
-	fmt.Println(i.getAllocatable())
-	fmt.Println("..................................................")
+	logger.Infof("..................................................")
+	logger.Infof("Scale-> Total Used %d", i.TotalUsed)
+	logger.Infof("Scale-> Stateful Used %d", i.StatefulUsed)
+	logger.Infof("Scale-> Min Node %d", i.MinNode)
+	logger.Infof("Scale-> Max Node %d", i.MaxNode)
+	logger.Infof("Scale-> Current Nodes %d", len(i.Nodes))
+	logger.Infof("Scale-> Current Stateful Nodes %d", func() int {
+		count := 0
+		for _, n := range i.Nodes {
+			if n.Stateful {
+				count++
+			}
+
+		}
+		return count
+	}())
+	logger.Infof("Scale-> Current stateful Nodes %d", len(i.Nodes))
+	e, _ := i.getTotalFilled()
+	logger.Infof("Scale-> Filled: %d", e)
+	e, _ = i.getFilledByAssumingLess()
+	logger.Infof("Scale-> If node delete filled: %d", e)
+	e2, _ := i.getAllocatable()
+	logger.Infof("Scale-> Allocatable: cpu_%d,  memory_%d", e2.Cpu, e2.Memory)
+	logger.Infof("..................................................")
 
 	// upscaling logincs
 	{

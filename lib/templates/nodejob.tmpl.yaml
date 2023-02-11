@@ -3,9 +3,9 @@
 {{- $nodeConfig := get . "nodeConfig"}}
 {{- $klConfig := get . "klConfig"}}
 {{- $provider := get . "provider"}}
-{{- $ownerRefs := get . "owner-refs" }}
-{{- $labels := get . "labels" }}
-{{- $taints := get . "taints" }}
+{{- $ownerRefs := get . "ownerRefs" }}
+# {{- $labels := get . "labels" }}
+# {{- $taints := get . "taints" }}
 
 apiVersion: batch/v1
 kind: Job
@@ -16,22 +16,24 @@ metadata:
 spec:
   template:
     spec:
-      nodeSelector:
-        kloudlite.io/auto-scaler: "true"
+      # nodeSelector:
+      #   kloudlite.io/auto-scaler: "true"
       tolerations:
       - effect: NoExecute
         key: kloudlite.io/auto-scaler
         operator: Exists
 
       restartPolicy: Never
+      imagePullSecrets:
+        - name: kl-docker-creds
       # serviceAccount: cluster-kloudlite-svc-account
-      serviceAccountName: kloudlite-cluster-svc-account
+      # serviceAccountName: kloudlite-cluster-svc-account
       # nodeSelector:
       #   kloudlite.io/region: kl-blr1
       containers:
 
-      - image: registry.kloudlite.io/kloudlite/production/nodectrl:v1.0.4
-        name: nodectrl
+      - image: registry.kloudlite.io/kloudlite/development/nodecontroller:v1.0.5
+        name: nodecontroller
         imagePullPolicy: Always
         command:
           - /bin/sh
@@ -49,7 +51,7 @@ spec:
             # chown -R nonroot:nonroot /home/nonroot/ssh
             # chmod 400 /home/nonroot/ssh/id_rsa
             # tail -f /dev/null
-            ./nodectrl
+            ./nodecontroller
 
         # securityContext:
         #   runAsNonRoot: true
@@ -62,10 +64,10 @@ spec:
           value: {{ $nodeConfig }}
         - name: PROVIDER
           value: {{ $provider }}
-        - name: LABELS
-          value: {{ $labels | toJson | squote }}
-        - name: TAINTS
-          value: {{ $taints | toJson | squote }}
+        # - name: LABELS
+        #   value: {{ $labels | toJson | squote }}
+        # - name: TAINTS
+        #   value: {{ $taints | toJson | squote }}
         - name: S3_DIR
           value: /terraform/storage
 

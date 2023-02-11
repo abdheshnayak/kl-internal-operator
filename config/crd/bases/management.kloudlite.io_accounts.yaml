@@ -39,8 +39,6 @@ spec:
             type: object
           spec:
             properties:
-              accountId:
-                type: string
               ownedDomains:
                 items:
                   type: string

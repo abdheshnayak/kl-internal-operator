@@ -15,7 +15,24 @@ spec:
     singular: nodepool
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: account
+      jsonPath: .spec.accountRef
+      name: Account
+      type: string
+    - description: provider
+      jsonPath: .metadata.annotations.provider-region
+      name: Provider/Region
+      type: string
+    - description: index of node
+      jsonPath: .metadata.annotations.min-max
+      name: Min/Max
+      type: string
+    - description: region
+      jsonPath: .status.isReady
+      name: Ready
+      type: boolean
+    name: v1
     schema:
       openAPIV3Schema:
         description: NodePool is the Schema for the nodepools API
@@ -35,11 +52,13 @@ spec:
           spec:
             description: NodePoolSpec defines the desired state of NodePool
             properties:
-              accountRef:
+              accountName:
+                type: string
+              clusterName:
                 type: string
               config:
                 type: string
-              edgeRef:
+              edgeName:
                 type: string
               max:
                 type: integer
@@ -47,10 +66,13 @@ spec:
                 type: integer
               provider:
                 type: string
-              providerRef:
+              providerName:
                 type: string
               region:
                 type: string
+            required:
+            - accountName
+            - clusterName
             type: object
           status:
             properties:
