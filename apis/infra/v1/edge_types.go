@@ -28,7 +28,7 @@ type EdgeSpec struct {
 	Provider     string `json:"provider,omitempty"`
 	Region       string `json:"region,omitempty"`
 	ProviderName string `json:"providerName"`
-	ClusterName      string `json:"clusterName"`
+	ClusterName  string `json:"clusterName"`
 
 	Pools []Pool `json:"pools,omitempty"`
 }
@@ -36,9 +36,9 @@ type EdgeSpec struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
-// +kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountId",description="account"
+// +kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountName",description="account"
 // +kubebuilder:printcolumn:name="Provider",type="string",JSONPath=".spec.provider",description="provider"
-// +kubebuilder:printcolumn:name="Clsuter",type="string",JSONPath=".spec.cluster",description="provider"
+// +kubebuilder:printcolumn:name="Clsuter",type="string",JSONPath=".spec.clusterName",description="provider"
 // +kubebuilder:printcolumn:name="pools",type="string",JSONPath=".metadata.annotations.node-pools-count",description="index of node"
 //+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.isReady",description="region"
 

@@ -17,7 +17,7 @@ spec:
   versions:
   - additionalPrinterColumns:
     - description: region
-      jsonPath: .spec.accountId
+      jsonPath: .spec.accountName
       name: Account
       type: string
     - description: region
@@ -52,8 +52,6 @@ spec:
                 type: string
               isMaster:
                 type: boolean
-            required:
-            - accountName
             type: object
           status:
             properties:

@@ -21,7 +21,7 @@ spec:
       name: Index
       type: integer
     - description: account
-      jsonPath: .spec.accountRef
+      jsonPath: .spec.accountName
       name: Account
       type: string
     - description: provider

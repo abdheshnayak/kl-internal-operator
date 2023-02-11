@@ -470,11 +470,6 @@ func (r *WorkerNodeReconciler) ensureNodeAttached(req *rApi.Request[*infrav1.Wor
 		}
 	}
 
-	// attached
-	// if err := r.attachNode(req); err != nil {
-	// 	return failed(err)
-	// }
-
 	check.Status = true
 	if check != checks[NodeAttached] {
 		checks[NodeAttached] = check
@@ -483,7 +478,48 @@ func (r *WorkerNodeReconciler) ensureNodeAttached(req *rApi.Request[*infrav1.Wor
 	return req.Next()
 }
 
+func (r *WorkerNodeReconciler) deleteNode(req *rApi.Request[*infrav1.WorkerNode]) error {
+
+	// needs to create deletionJob
+	jobOut, err := r.getJobCrd(req, false)
+	if err != nil {
+		return err
+	}
+
+	if _, err = functions.KubectlApplyExec(jobOut); err != nil {
+		return err
+	}
+
+	return fmt.Errorf("node scheduled to delete")
+}
+
 func (r *WorkerNodeReconciler) finalize(req *rApi.Request[*infrav1.WorkerNode]) stepResult.Result {
+	ctx, obj := req.Context(), req.Object
+	failed := req.FailWithStatusError
+
+	node, err := rApi.Get(ctx, r.Client, types.NamespacedName{
+		Name: mNode(obj.Name),
+	}, &corev1.Node{})
+
+	if err == nil {
+		if err := r.Delete(req.Context(), node); err != nil {
+			return req.FailWithStatusError(err)
+		}
+		return failed(fmt.Errorf("detaching node from cluster"))
+	}
+
+	if !apiErrors.IsNotFound(err) {
+		return failed(err)
+	}
+
+	if _, err = terraform.GetOutputs(r.getTFPath(obj));
+	 err == nil {
+		// delete node here
+		if err := r.deleteNode(req); err != nil {
+			return failed(err)
+		}
+	}
+
 	return req.Finalize()
 }
 

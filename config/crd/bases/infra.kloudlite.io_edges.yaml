@@ -17,7 +17,7 @@ spec:
   versions:
   - additionalPrinterColumns:
     - description: account
-      jsonPath: .spec.accountId
+      jsonPath: .spec.accountName
       name: Account
       type: string
     - description: provider
@@ -25,7 +25,7 @@ spec:
       name: Provider
       type: string
     - description: provider
-      jsonPath: .spec.cluster
+      jsonPath: .spec.clusterName
       name: Clsuter
       type: string
     - description: index of node

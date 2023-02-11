@@ -23,7 +23,7 @@ type NodePoolSpec struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountRef",description="account"
+// +kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountName",description="account"
 // +kubebuilder:printcolumn:name="Provider/Region",type="string",JSONPath=".metadata.annotations.provider-region",description="provider"
 // +kubebuilder:printcolumn:name="Min/Max",type="string",JSONPath=".metadata.annotations.min-max",description="index of node"
 // +kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.isReady",description="region"

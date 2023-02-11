@@ -36,7 +36,7 @@ type WorkerNodeStatus struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
 // +kubebuilder:printcolumn:name="Index",type="integer",JSONPath=".spec.nodeIndex",description="index of node"
-// +kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountRef",description="account"
+// +kubebuilder:printcolumn:name="Account",type="string",JSONPath=".spec.accountName",description="account"
 // +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".metadata.annotations.instanceType",description="provider"
 // +kubebuilder:printcolumn:JSONPath=".metadata.creationTimestamp",name=Age,type=date
 //+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.isReady",description="region"
@@ -57,6 +57,8 @@ func (a *WorkerNode) GetEnsuredAnnotations() map[string]string {
 	switch a.Spec.Provider {
 	case "aws":
 		instance = kv["instanceType"]
+	case "do":
+		instance = kv["size"]
 	}
 
 	return map[string]string{
